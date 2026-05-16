@@ -1,0 +1,16 @@
+{
+  "name": "personal-blog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "个人博客系统 - 前后端分离的全栈博客",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd blog-server && node app.js",
+    "client": "cd blog-client && npm run dev",
+    "init-db": "cd blog-server && npm run init-db",
+    "install:all": "cd blog-server && npm install && cd ../blog-client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
