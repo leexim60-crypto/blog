@@ -1,26 +1,42 @@
 // 远程数据库初始化脚本
-// 使用方法：在 blog-server 目录下执行
-//   node init-db-remote.js <MySQL地址> <密码>
-// 例如：
-//   node init-db-remote.js roundhouse.proxy.rlwy.net AbCdEf1234
+// 使用方法：
+//   node init-db-remote.js <Host> <密码> [端口] [SSL]
+//
+// 本地 MySQL：
+//   node init-db-remote.js localhost root123
+//
+// TiDB Cloud：
+//   node init-db-remote.js gateway01.us-west-2.prod.aws.tidbcloud.com 你的密码 4000 true
 
 const host = process.argv[2]
 const password = process.argv[3]
+const port = process.argv[4] || '3306'
+const ssl = process.argv[5] || 'false'
 
 if (!host || !password) {
   console.log('')
   console.log('  使用方法：')
-  console.log('  node init-db-remote.js <MySQL公网地址> <密码>')
+  console.log('  node init-db-remote.js <Host> <密码> [端口] [SSL]')
   console.log('')
-  console.log('  例如：')
-  console.log('  node init-db-remote.js roundhouse.proxy.rlwy.net AbCdEf1234')
+  console.log('  本地 MySQL：')
+  console.log('  node init-db-remote.js localhost your_password')
+  console.log('')
+  console.log('  TiDB Cloud：')
+  console.log('  node init-db-remote.js gateway01.us-west-2.prod.aws.tidbcloud.com your_password 4000 true')
   console.log('')
   process.exit(1)
 }
 
-// 写入临时 .env
 const fs = require('fs')
-fs.writeFileSync('.env', `DB_HOST=${host}\nDB_PASSWORD=${password}\nDB_NAME=railway\n`)
+const envContent = [
+  `DB_HOST=${host}`,
+  `DB_PASSWORD=${password}`,
+  `DB_PORT=${port}`,
+  `DB_NAME=personal_blog`,
+  ssl === 'true' ? 'DB_SSL=true' : ''
+].filter(Boolean).join('\n')
 
-// 执行初始化
+fs.writeFileSync('.env', envContent + '\n')
+console.log(`正在连接 ${host}:${port} ...`)
+
 require('./init-db')

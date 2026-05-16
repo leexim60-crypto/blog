@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: blog-server
+    runtime: docker
+    dockerfilePath: ./blog-server/Dockerfile
+    dockerContext: ./blog-server
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 10000
