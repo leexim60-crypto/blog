@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'blog_secret_key_2024';
 
+// 必须登录
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -19,6 +20,15 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// 必须是管理员
+function adminMiddleware(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ code: 403, message: '需要管理员权限' });
+  }
+  next();
+}
+
+// 可选登录（不强制）
 function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -33,4 +43,4 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-module.exports = { authMiddleware, optionalAuth, JWT_SECRET };
+module.exports = { authMiddleware, adminMiddleware, optionalAuth, JWT_SECRET };

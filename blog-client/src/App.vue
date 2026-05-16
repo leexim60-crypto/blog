@@ -28,6 +28,9 @@
                   <el-dropdown-item @click="router.push('/admin')">
                     <el-icon><Setting /></el-icon> 后台管理
                   </el-dropdown-item>
+                  <el-dropdown-item @click="showPasswordDialog = true">
+                    <el-icon><Lock /></el-icon> 修改密码
+                  </el-dropdown-item>
                   <el-dropdown-item divided @click="handleLogout">
                     <el-icon><SwitchButton /></el-icon> 退出登录
                   </el-dropdown-item>
@@ -76,19 +79,42 @@
         <p>© {{ new Date().getFullYear() }} 前端工程师的博客 · 热爱技术，热爱生活</p>
       </div>
     </footer>
+
+    <!-- 修改密码弹窗 -->
+    <el-dialog v-model="showPasswordDialog" title="修改密码" width="400px" :close-on-click-modal="false">
+      <el-form :model="passwordForm" label-width="80px">
+        <el-form-item label="旧密码">
+          <el-input v-model="passwordForm.oldPassword" type="password" show-password placeholder="请输入旧密码" />
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password placeholder="至少6个字符" />
+        </el-form-item>
+        <el-form-item label="确认密码">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showPasswordDialog = false">取消</el-button>
+        <el-button type="primary" :loading="passwordLoading" @click="handleChangePassword">确认修改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { ElMessage } from 'element-plus'
+import api from './api'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const showMobileMenu = ref(false)
+const showPasswordDialog = ref(false)
+const passwordLoading = ref(false)
+const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
 watch(() => route.path, () => {
   showMobileMenu.value = false
@@ -99,6 +125,40 @@ function handleLogout() {
   showMobileMenu.value = false
   ElMessage.success('已退出登录')
   router.push('/')
+}
+
+async function handleChangePassword() {
+  if (!passwordForm.oldPassword || !passwordForm.newPassword) {
+    return ElMessage.warning('请填写完整')
+  }
+  if (passwordForm.newPassword.length < 6) {
+    return ElMessage.warning('新密码长度不能少于6个字符')
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    return ElMessage.warning('两次输入的密码不一致')
+  }
+  passwordLoading.value = true
+  try {
+    const res = await api.put('/auth/password', {
+      oldPassword: passwordForm.oldPassword,
+      newPassword: passwordForm.newPassword
+    })
+    if (res.code === 200) {
+      ElMessage.success('密码修改成功，请重新登录')
+      showPasswordDialog.value = false
+      passwordForm.oldPassword = ''
+      passwordForm.newPassword = ''
+      passwordForm.confirmPassword = ''
+      authStore.logout()
+      router.push('/login')
+    } else {
+      ElMessage.error(res.message || '修改失败')
+    }
+  } catch {
+    ElMessage.error('修改失败，请稍后重试')
+  } finally {
+    passwordLoading.value = false
+  }
 }
 </script>
 

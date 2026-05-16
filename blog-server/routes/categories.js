@@ -28,6 +28,7 @@ router.get('/tags', async (req, res) => {
       `SELECT t.*, COUNT(pt.post_id) as post_count
        FROM tags t
        LEFT JOIN post_tags pt ON t.id = pt.tag_id
+       LEFT JOIN posts p ON pt.post_id = p.id AND p.is_published = 1
        GROUP BY t.id
        ORDER BY post_count DESC`
     );

@@ -141,6 +141,7 @@
                   :placeholder="mdPlaceholder"
                   class="w-full h-full p-4 text-sm text-stone-800 leading-relaxed font-mono resize-none border-0 outline-none bg-white"
                   @scroll="syncScroll"
+                  @keydown="handleEditorKeydown"
                 ></textarea>
               </div>
               <div class="editor-preview flex-1 overflow-y-auto" v-show="editorMode !== 'edit'" ref="previewRef">
@@ -287,9 +288,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
-import { Marked } from 'marked'
-import { markedHighlight } from 'marked-highlight'
-import hljs from 'highlight.js'
+import { renderMarkdown } from '../utils/markdown'
+import { formatDate, getCategoryType, estimateReadTime } from '../utils/helpers'
 import { ElMessage } from 'element-plus'
 import api from '../api'
 
@@ -302,6 +302,7 @@ const pageSize = ref(10)
 const total = ref(0)
 const filterCategory = ref('')
 const filterKeyword = ref('')
+const dashboardStats = ref({ total_posts: 0, published: 0, drafts: 0, total_views: 0 })
 const editorVisible = ref(false)
 const editingPost = ref(null)
 const editorMode = ref('split')
@@ -344,10 +345,10 @@ const postForm = reactive({
 })
 
 const statCards = computed(() => [
-  { label: '总文章数', value: total.value, icon: 'Document', color: '#f43f5e' },
-  { label: '已发布', value: posts.value.filter(p => p.is_published).length, icon: 'SuccessFilled', color: '#10b981' },
-  { label: '草稿', value: posts.value.filter(p => !p.is_published).length, icon: 'Edit', color: '#f59e0b' },
-  { label: '总浏览量', value: posts.value.reduce((s, p) => s + (p.view_count || 0), 0), icon: 'View', color: '#78716c' }
+  { label: '总文章数', value: dashboardStats.value.total_posts, icon: 'Document', color: '#f43f5e' },
+  { label: '已发布', value: dashboardStats.value.published, icon: 'SuccessFilled', color: '#10b981' },
+  { label: '草稿', value: dashboardStats.value.drafts, icon: 'Edit', color: '#f59e0b' },
+  { label: '总浏览量', value: dashboardStats.value.total_views || 0, icon: 'View', color: '#78716c' }
 ])
 
 const wordCount = computed(() => {
@@ -360,22 +361,9 @@ const lineCount = computed(() => {
   return postForm.content.split('\n').length
 })
 
-const marked = new Marked(
-  { gfm: true, breaks: false },
-  markedHighlight({
-    langPrefix: 'hljs language-',
-    highlight(code, lang) {
-      if (lang && hljs.getLanguage(lang)) {
-        return hljs.highlight(code, { language: lang }).value
-      }
-      return hljs.highlightAuto(code).value
-    }
-  })
-)
-
 const previewContent = computed(() => {
   if (!postForm.content) return ''
-  return marked.parse(postForm.content)
+  return renderMarkdown(postForm.content)
 })
 
 // 封面图 URL 变化时重置错误状态
@@ -432,15 +420,19 @@ function syncScroll(e) {
   preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight)
 }
 
-function getCategoryType(name) {
-  const map = { '代码': '', '面试八股': 'warning', '感悟': 'success' }
-  return map[name] || 'info'
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+function handleEditorKeydown(e) {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'b') {
+      e.preventDefault()
+      insertMarkdown('bold')
+    } else if (e.key === 'i') {
+      e.preventDefault()
+      insertMarkdown('italic')
+    } else if (e.key === 's') {
+      e.preventDefault()
+      savePost()
+    }
+  }
 }
 
 function showTagInput() {
@@ -515,6 +507,15 @@ async function fetchPosts() {
   }
 }
 
+async function fetchStats() {
+  try {
+    const res = await api.get('/posts/stats')
+    if (res.code === 200) dashboardStats.value = res.data
+  } catch {
+    // 静默失败，不影响主流程
+  }
+}
+
 function handlePageChange(page) {
   currentPage.value = page
   fetchPosts()
@@ -538,6 +539,7 @@ async function savePost() {
       ElMessage.success(editingPost.value ? '更新成功' : '发布成功')
       editorVisible.value = false
       fetchPosts()
+      fetchStats()
     } else {
       ElMessage.error(res.message || '操作失败')
     }
@@ -552,6 +554,7 @@ async function deletePost(id) {
     if (res.code === 200) {
       ElMessage.success('删除成功')
       fetchPosts()
+      fetchStats()
     } else {
       ElMessage.error(res.message || '删除失败')
     }
@@ -563,6 +566,7 @@ async function deletePost(id) {
 onMounted(() => {
   fetchCategories()
   fetchPosts()
+  fetchStats()
 })
 </script>
 

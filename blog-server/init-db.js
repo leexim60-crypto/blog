@@ -3,13 +3,20 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
 async function initDatabase() {
-  // 先连接MySQL（不指定数据库）创建数据库
-  const conn = await mysql.createConnection({
+  const connConfig = {
     host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     multipleStatements: true
-  });
+  };
+
+  // 云数据库需要 SSL 连接
+  if (process.env.DB_SSL === 'true') {
+    connConfig.ssl = { rejectUnauthorized: false };
+  }
+
+  const conn = await mysql.createConnection(connConfig);
 
   const dbName = process.env.DB_NAME || 'personal_blog';
   console.log('连接MySQL成功，开始初始化数据库...');
@@ -37,6 +44,7 @@ async function initDatabase() {
       nickname VARCHAR(50) DEFAULT '',
       avatar VARCHAR(255) DEFAULT '',
       bio TEXT,
+      role ENUM('admin', 'user') DEFAULT 'user',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
@@ -89,6 +97,13 @@ async function initDatabase() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // 添加索引提升查询性能
+  await conn.query('CREATE INDEX idx_posts_published ON posts (is_published)');
+  await conn.query('CREATE INDEX idx_posts_category ON posts (category_id)');
+  await conn.query('CREATE INDEX idx_posts_created ON posts (created_at DESC)');
+  await conn.query('CREATE INDEX idx_tags_name ON tags (name)');
+  console.log('索引已创建');
+
   // 插入预设分类
   await conn.query(`
     INSERT INTO categories (name, icon, description) VALUES
@@ -104,6 +119,8 @@ async function initDatabase() {
     'INSERT INTO users (username, password, nickname, bio) VALUES (?, ?, ?, ?)',
     ['admin', hashedPassword, '前端工程师', '热爱技术，热爱生活。一名专注于前端开发的工程师。']
   );
+  // 设置管理员角色
+  await conn.query("UPDATE users SET role = 'admin' WHERE username = 'admin'");
   console.log('默认管理员账户已创建 (用户名: admin, 密码: admin123)');
 
   // 插入示例标签
