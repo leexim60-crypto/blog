@@ -106,7 +106,13 @@ const relatedPosts = ref([])
 const loading = ref(false)
 const tocOpen = ref(true)
 
-const renderedContent = computed(() => renderMarkdown(post.value?.content))
+const renderedContent = computed(() => {
+  try {
+    return renderMarkdown(post.value?.content)
+  } catch {
+    return post.value?.content || ''
+  }
+})
 const readTime = computed(() => estimateReadTime(post.value?.content))
 
 const headings = computed(() => extractHeadings(post.value?.content))
@@ -128,8 +134,8 @@ async function fetchPost() {
       post.value = res.data
       fetchRelated()
     }
-  } catch {
-    // post stays null, shows 404 state
+  } catch (err) {
+    console.error('获取文章失败:', err)
   } finally {
     loading.value = false
   }

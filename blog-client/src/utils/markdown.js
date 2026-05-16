@@ -8,10 +8,9 @@ function slugify(text) {
 }
 
 const renderer = {
-  heading({ tokens, depth }) {
-    const text = tokens.map(t => t.raw || t.text || '').join('')
-    const id = slugify(text)
-    return `<h${depth} id="${id}">${this.parser.parseInline(tokens)}</h${depth}>`
+  heading(text, level, raw) {
+    const id = slugify(raw || text)
+    return `<h${level} id="${id}">${text}</h${level}>`
   }
 }
 
@@ -34,11 +33,6 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'IMG') {
     node.setAttribute('loading', 'lazy')
     node.setAttribute('alt', node.getAttribute('alt') || '')
-  }
-  // 保留标题 id 以便目录跳转
-  if (/^H[1-6]$/.test(node.tagName)) {
-    const id = node.getAttribute('id')
-    if (id) node.setAttribute('id', id)
   }
 })
 
