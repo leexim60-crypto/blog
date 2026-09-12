@@ -3,22 +3,55 @@
     <!-- 头部横幅 -->
     <div class="card relative overflow-hidden p-10 mb-6 rounded-2xl bg-gradient-to-br from-rose-50 via-warm-50 to-amber-50">
       <div class="relative z-10">
-        <h1 class="text-2xl font-bold text-stone-800 mb-2">Hi, 我是一名前端工程师</h1>
-        <p class="text-base text-stone-500 mb-6">这里记录我的代码、面试经验和成长感悟</p>
+        <h1 class="text-2xl font-bold text-stone-800 mb-2">Hi, 我是陈Hello</h1>
+        <p class="text-base text-stone-500 mb-6">欢迎来到我的博客，下面是我部署上线的项目，欢迎访问体验</p>
         <div class="flex gap-8">
+          <div class="flex flex-col items-center">
+            <span class="text-2xl font-bold text-primary-600">{{ projects.length }}</span>
+            <span class="text-xs text-stone-400">在线项目</span>
+          </div>
           <div class="flex flex-col items-center">
             <span class="text-2xl font-bold text-primary-600">{{ stats.totalPosts }}</span>
             <span class="text-xs text-stone-400">文章</span>
-          </div>
-          <div class="flex flex-col items-center">
-            <span class="text-2xl font-bold text-primary-600">{{ stats.totalViews }}</span>
-            <span class="text-xs text-stone-400">浏览</span>
           </div>
           <div class="flex flex-col items-center">
             <span class="text-2xl font-bold text-primary-600">{{ stats.totalCategories }}</span>
             <span class="text-xs text-stone-400">分类</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 我的项目（部署上线网址导航） -->
+    <h2 class="text-lg font-bold text-stone-800 mb-4 flex items-center gap-2">
+      <el-icon class="text-primary-500"><Link /></el-icon> 我的项目
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+      <a
+        v-for="proj in projects"
+        :key="proj.name"
+        :href="proj.url"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="card p-5 rounded-xl flex flex-col gap-3 hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300"
+      >
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-lg text-white flex items-center justify-center flex-shrink-0" :style="{ background: proj.color }">
+            <el-icon :size="22"><component :is="proj.icon" /></el-icon>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-base font-semibold text-stone-800 truncate">{{ proj.name }}</h3>
+            <span class="text-xs text-stone-400 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
+          </div>
+        </div>
+        <p class="text-sm text-stone-500 leading-relaxed flex-1">{{ proj.desc }}</p>
+        <span class="text-xs text-primary-600 flex items-center gap-1 self-start">
+          访问项目 <el-icon><TopRight /></el-icon>
+        </span>
+      </a>
+      <!-- 没有项目时的占位 -->
+      <div v-if="projects.length === 0" class="col-span-full">
+        <el-empty description="还没有项目，去 Home.vue 顶部的 projects 数组里添加吧" />
       </div>
     </div>
 
@@ -122,6 +155,37 @@ import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { formatDate, getCategoryType } from '../utils/helpers'
 import api from '../api'
+
+/* =========================================================
+ * 我的项目列表（部署上线的网址都写在这里）
+ * 添加项目：复制一段 { ... } 改 name / url / desc 即可
+ * icon 可用 Element Plus 图标名：Monitor、Link、ChatDotRound、
+ *   ShoppingCart、Football、VideoPlay、Picture 等
+ * ========================================================= */
+const projects = ref([
+  {
+    name: '个人博客',
+    url: 'https://leexim60-blog.vercel.app',
+    desc: '本站 · Vue 3 + Element Plus + Node.js + MySQL 全栈博客',
+    icon: 'Monitor',
+    color: '#42b883'
+  },
+  {
+    name: '博客后端 API',
+    url: 'https://blog-server-leexim60.onrender.com/api/health',
+    desc: 'Render 部署的 Node.js 接口服务（健康检查地址）',
+    icon: 'Connection',
+    color: '#68a063'
+  }
+  // 在下面继续添加你的项目，例如：
+  // {
+  //   name: '低代码搭建平台',
+  //   url: 'https://xxx.vercel.app',
+  //   desc: '拖拽搭建页面，一键导出 Vue 3 代码',
+  //   icon: 'SetUp',
+  //   color: '#409eff'
+  // }
+])
 
 const router = useRouter()
 const posts = ref([])

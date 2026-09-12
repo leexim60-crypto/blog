@@ -4,7 +4,7 @@
       <div class="max-w-6xl mx-auto px-5 flex items-center justify-between h-full">
         <router-link to="/" class="flex items-center gap-2 text-lg font-bold text-primary-600">
           <el-icon :size="22"><Monitor /></el-icon>
-          <span>前端工程师的博客</span>
+          <span>陈Hello的博客</span>
         </router-link>
         <nav class="hidden md:flex items-center gap-1">
           <router-link to="/" class="nav-link">
@@ -76,7 +76,7 @@
 
     <footer class="text-center py-5 text-xs text-stone-400 border-t border-stone-200 bg-white">
       <div class="max-w-6xl mx-auto px-5">
-        <p>© {{ new Date().getFullYear() }} 前端工程师的博客 · 热爱技术，热爱生活</p>
+        <p>© {{ new Date().getFullYear() }} 陈Hello的博客 · 项目导航与文章分享</p>
       </div>
     </footer>
 

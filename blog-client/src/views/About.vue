@@ -6,7 +6,7 @@
         <div class="w-24 h-24 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 text-primary-600 flex items-center justify-center mx-auto mb-4">
           <el-icon :size="48"><User /></el-icon>
         </div>
-        <h1 class="text-2xl font-bold text-stone-800 mb-2">前端工程师</h1>
+        <h1 class="text-2xl font-bold text-stone-800 mb-2">陈Hello</h1>
         <p class="text-base text-stone-400">热爱技术，热爱生活</p>
       </div>
 
