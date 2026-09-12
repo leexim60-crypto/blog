@@ -18,21 +18,15 @@ export const useProjectsStore = defineStore('projects', () => {
       desc: 'React + Vite 英语学习网站：单词卡片、每日一句、单词测验、生词本',
       icon: 'Reading',
       color: '#409eff'
-    },
-    {
-      name: '个人博客',
-      url: 'https://leexim60-blog.vercel.app',
-      desc: '本站 · Vue 3 + Element Plus + Node.js + MySQL 全栈博客',
-      icon: 'Monitor',
-      color: '#42b883'
-    },
-    {
-      name: '博客后端 API',
-      url: 'https://blog-server-leexim60.onrender.com/api/health',
-      desc: 'Render 部署的 Node.js 接口服务（健康检查地址）',
-      icon: 'Connection',
-      color: '#68a063'
     }
+    // 在下面继续添加你的项目，例如：
+    // {
+    //   name: '低代码搭建平台',
+    //   url: 'https://xxx.vercel.app',
+    //   desc: '拖拽搭建页面，一键导出 Vue 3 代码',
+    //   icon: 'SetUp',
+    //   color: '#409eff'
+    // }
   ])
 
   function open() {
