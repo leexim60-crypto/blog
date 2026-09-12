@@ -165,7 +165,7 @@ import api from '../api'
 const projects = ref([
   {
     name: '英语学习网',
-    url: 'https://english-zyur.vercel.app',
+    url: 'https://english-mauve-seven.vercel.app',
     desc: 'React + Vite 英语学习网站：单词卡片、每日一句、单词测验、生词本',
     icon: 'Reading',
     color: '#409eff'
