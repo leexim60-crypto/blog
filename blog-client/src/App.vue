@@ -13,34 +13,9 @@
           <router-link to="/about" class="nav-link">
             <el-icon><User /></el-icon> 关于
           </router-link>
-          <template v-if="authStore.isLoggedIn">
-            <router-link to="/admin" class="nav-link">
-              <el-icon><Setting /></el-icon> 管理
-            </router-link>
-            <el-dropdown trigger="click">
-              <span class="nav-link cursor-pointer flex items-center gap-1">
-                <el-icon><UserFilled /></el-icon>
-                {{ authStore.user?.nickname || authStore.user?.username }}
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="router.push('/admin')">
-                    <el-icon><Setting /></el-icon> 后台管理
-                  </el-dropdown-item>
-                  <el-dropdown-item @click="showPasswordDialog = true">
-                    <el-icon><Lock /></el-icon> 修改密码
-                  </el-dropdown-item>
-                  <el-dropdown-item divided @click="handleLogout">
-                    <el-icon><SwitchButton /></el-icon> 退出登录
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </template>
-          <router-link v-else to="/login" class="nav-link-login">
-            <el-icon><Key /></el-icon> 登录
-          </router-link>
+          <div class="nav-link cursor-pointer" @click="openProjects">
+            <el-icon><Grid /></el-icon> 我的项目
+          </div>
         </nav>
         <el-icon class="md:hidden text-xl cursor-pointer text-stone-600" @click="showMobileMenu = !showMobileMenu"><Menu /></el-icon>
       </div>
@@ -52,17 +27,9 @@
         <router-link to="/about" class="mobile-nav-link" @click="showMobileMenu = false">
           <el-icon><User /></el-icon> 关于
         </router-link>
-        <template v-if="authStore.isLoggedIn">
-          <router-link to="/admin" class="mobile-nav-link" @click="showMobileMenu = false">
-            <el-icon><Setting /></el-icon> 管理
-          </router-link>
-          <a class="mobile-nav-link" @click="handleLogout">
-            <el-icon><SwitchButton /></el-icon> 退出登录
-          </a>
-        </template>
-        <router-link v-else to="/login" class="mobile-nav-link" @click="showMobileMenu = false">
-          <el-icon><Key /></el-icon> 登录
-        </router-link>
+        <a class="mobile-nav-link" @click="openProjects">
+          <el-icon><Grid /></el-icon> 我的项目
+        </a>
       </div>
     </header>
 
@@ -79,100 +46,36 @@
         <p>© {{ new Date().getFullYear() }} 陈Hello的博客 · 项目导航与文章分享</p>
       </div>
     </footer>
-
-    <!-- 修改密码弹窗 -->
-    <el-dialog v-model="showPasswordDialog" title="修改密码" width="400px" :close-on-click-modal="false">
-      <el-form :model="passwordForm" label-width="80px">
-        <el-form-item label="旧密码">
-          <el-input v-model="passwordForm.oldPassword" type="password" show-password placeholder="请输入旧密码" />
-        </el-form-item>
-        <el-form-item label="新密码">
-          <el-input v-model="passwordForm.newPassword" type="password" show-password placeholder="至少6个字符" />
-        </el-form-item>
-        <el-form-item label="确认密码">
-          <el-input v-model="passwordForm.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showPasswordDialog = false">取消</el-button>
-        <el-button type="primary" :loading="passwordLoading" @click="handleChangePassword">确认修改</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from './stores/auth'
-import { ElMessage } from 'element-plus'
-import api from './api'
+import { ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useProjectsStore } from './stores/projects'
 
-const router = useRouter()
 const route = useRoute()
-const authStore = useAuthStore()
+const projectsStore = useProjectsStore()
 const showMobileMenu = ref(false)
-const showPasswordDialog = ref(false)
-const passwordLoading = ref(false)
-const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
 watch(() => route.path, () => {
   showMobileMenu.value = false
 })
 
-function handleLogout() {
-  authStore.logout()
+function openProjects() {
   showMobileMenu.value = false
-  ElMessage.success('已退出登录')
-  router.push('/')
-}
-
-async function handleChangePassword() {
-  if (!passwordForm.oldPassword || !passwordForm.newPassword) {
-    return ElMessage.warning('请填写完整')
-  }
-  if (passwordForm.newPassword.length < 6) {
-    return ElMessage.warning('新密码长度不能少于6个字符')
-  }
-  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-    return ElMessage.warning('两次输入的密码不一致')
-  }
-  passwordLoading.value = true
-  try {
-    const res = await api.put('/auth/password', {
-      oldPassword: passwordForm.oldPassword,
-      newPassword: passwordForm.newPassword
-    })
-    if (res.code === 200) {
-      ElMessage.success('密码修改成功，请重新登录')
-      showPasswordDialog.value = false
-      passwordForm.oldPassword = ''
-      passwordForm.newPassword = ''
-      passwordForm.confirmPassword = ''
-      authStore.logout()
-      router.push('/login')
-    } else {
-      ElMessage.error(res.message || '修改失败')
-    }
-  } catch {
-    ElMessage.error('修改失败，请稍后重试')
-  } finally {
-    passwordLoading.value = false
-  }
+  projectsStore.open()
 }
 </script>
 
 <style scoped>
 .nav-link {
-  @apply flex items-center gap-1 px-4 py-2 rounded-lg text-sm text-stone-600 transition-all duration-200 hover:text-primary-600 hover:bg-primary-50;
+  @apply flex items-center gap-1 px-4 py-2 rounded-lg text-sm text-stone-600 transition-all duration-200 hover:text-primary-600 hover:bg-primary-50 cursor-pointer;
 }
 .nav-link.router-link-active {
   @apply text-primary-600 bg-primary-50 font-medium;
 }
-.nav-link-login {
-  @apply flex items-center gap-1 px-4 py-2 rounded-lg text-sm text-white bg-primary-500 hover:bg-primary-600 transition-all duration-200;
-}
 .mobile-nav-link {
-  @apply flex items-center gap-2 px-4 py-3 rounded-lg text-stone-600 transition-all duration-200 hover:text-primary-600 hover:bg-primary-50;
+  @apply flex items-center gap-2 px-4 py-3 rounded-lg text-stone-600 transition-all duration-200 hover:text-primary-600 hover:bg-primary-50 cursor-pointer;
 }
 </style>

@@ -1,292 +1,65 @@
 <template>
-  <div class="home max-w-5xl mx-auto px-5">
+  <div class="home max-w-3xl mx-auto px-5">
     <!-- 头部横幅 -->
-    <div class="card relative overflow-hidden p-10 mb-6 rounded-2xl bg-gradient-to-br from-rose-50 via-warm-50 to-amber-50">
+    <div class="card relative overflow-hidden p-12 mb-8 rounded-2xl bg-gradient-to-br from-rose-50 via-warm-50 to-amber-50 text-center">
       <div class="relative z-10">
-        <h1 class="text-2xl font-bold text-stone-800 mb-2">Hi, 我是陈Hello</h1>
-        <p class="text-base text-stone-500 mb-6">欢迎来到我的博客，下面是我部署上线的项目，欢迎访问体验</p>
-        <div class="flex gap-8">
-          <div class="flex flex-col items-center">
-            <span class="text-2xl font-bold text-primary-600">{{ projects.length }}</span>
-            <span class="text-xs text-stone-400">在线项目</span>
-          </div>
-          <div class="flex flex-col items-center">
-            <span class="text-2xl font-bold text-primary-600">{{ stats.totalPosts }}</span>
-            <span class="text-xs text-stone-400">文章</span>
-          </div>
-          <div class="flex flex-col items-center">
-            <span class="text-2xl font-bold text-primary-600">{{ stats.totalCategories }}</span>
-            <span class="text-xs text-stone-400">分类</span>
-          </div>
+        <div class="w-20 h-20 rounded-full bg-white flex items-center justify-center mx-auto mb-5 text-primary-500 shadow-md">
+          <el-icon :size="40"><HomeFilled /></el-icon>
         </div>
+        <h1 class="text-3xl font-bold text-stone-800 mb-3">Hi, 我是陈Hello</h1>
+        <p class="text-base text-stone-500 mb-8">欢迎来到我的博客，这里汇总了我部署上线的项目，欢迎访问体验</p>
+        <el-button type="primary" size="large" round @click="projectsStore.open()">
+          <el-icon class="mr-1"><Grid /></el-icon> 查看我的项目
+        </el-button>
       </div>
     </div>
 
-    <!-- 我的项目（部署上线网址导航） -->
-    <h2 class="text-lg font-bold text-stone-800 mb-4 flex items-center gap-2">
-      <el-icon class="text-primary-500"><Link /></el-icon> 我的项目
-    </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-      <a
-        v-for="proj in projects"
-        :key="proj.name"
-        :href="proj.url"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="card p-5 rounded-xl flex flex-col gap-3 hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300"
-      >
-        <div class="flex items-center gap-3">
-          <div class="w-11 h-11 rounded-lg text-white flex items-center justify-center flex-shrink-0" :style="{ background: proj.color }">
-            <el-icon :size="22"><component :is="proj.icon" /></el-icon>
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-base font-semibold text-stone-800 truncate">{{ proj.name }}</h3>
-            <span class="text-xs text-stone-400 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
-          </div>
-        </div>
-        <p class="text-sm text-stone-500 leading-relaxed flex-1">{{ proj.desc }}</p>
-        <span class="text-xs text-primary-600 flex items-center gap-1 self-start">
-          访问项目 <el-icon><TopRight /></el-icon>
-        </span>
-      </a>
-      <!-- 没有项目时的占位 -->
-      <div v-if="projects.length === 0" class="col-span-full">
-        <el-empty description="还没有项目，去 Home.vue 顶部的 projects 数组里添加吧" />
-      </div>
-    </div>
-
-    <!-- 分类筛选 -->
-    <div class="flex gap-2 mb-4 flex-wrap">
-      <div
-        class="filter-item"
-        :class="{ active: activeCategory === null }"
-        @click="selectCategory(null)"
-      >
-        <el-icon><Grid /></el-icon> 全部
-      </div>
-      <div
-        v-for="cat in categories"
-        :key="cat.id"
-        class="filter-item"
-        :class="{ active: activeCategory === cat.id }"
-        @click="selectCategory(cat.id)"
-      >
-        <el-icon><component :is="cat.icon || 'Document'" /></el-icon>
-        {{ cat.name }}
-        <span class="text-xs opacity-60">{{ cat.post_count }}</span>
-      </div>
-    </div>
-
-    <!-- 搜索栏 -->
-    <div class="mb-6">
-      <el-input
-        v-model="keyword"
-        placeholder="搜索文章..."
-        :prefix-icon="Search"
-        size="large"
-        clearable
-        @keyup.enter="handleSearch"
-        @clear="handleSearch"
-        class="search-input"
-      >
-        <template #append>
-          <el-button @click="handleSearch">
-            <el-icon><Search /></el-icon>
-          </el-button>
-        </template>
-      </el-input>
-    </div>
-
-    <!-- 文章列表 -->
-    <div class="flex flex-col gap-4" v-loading="loading">
-      <div
-        v-for="post in posts"
-        :key="post.id"
-        class="card flex cursor-pointer overflow-hidden rounded-xl hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300"
-        @click="router.push(`/post/${post.id}`)"
-      >
-        <div class="w-56 min-h-40 flex-shrink-0 overflow-hidden" v-if="post.cover_image">
-          <img :src="post.cover_image" :alt="post.title" class="w-full h-full object-cover" />
-        </div>
-        <div class="w-56 min-h-40 flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-stone-100 to-stone-200" v-else>
-          <div class="w-20 h-20 rounded-full bg-white flex items-center justify-center text-primary-500 shadow-md">
-            <el-icon :size="40"><component :is="post.category_icon || 'Document'" /></el-icon>
-          </div>
-        </div>
-        <div class="flex-1 p-5 flex flex-col">
-          <div class="flex items-center gap-2.5 mb-2.5">
-            <el-tag v-if="post.category_name" size="small" :type="getCategoryType(post.category_name)">
-              {{ post.category_name }}
-            </el-tag>
-            <span class="text-xs text-stone-400">{{ formatDate(post.created_at) }}</span>
-          </div>
-          <h3 class="text-lg font-semibold mb-2 text-stone-800 line-clamp-1">{{ post.title }}</h3>
-          <p class="text-sm text-stone-500 leading-relaxed line-clamp-2 flex-1">{{ post.summary }}</p>
-          <div class="flex justify-between items-center mt-3">
-            <div class="flex flex-wrap gap-1" v-if="post.tags">
-              <span v-for="tag in post.tags.split(',')" :key="tag" class="tag">{{ tag }}</span>
+    <!-- 项目侧边栏（与顶栏共用） -->
+    <el-drawer
+      v-model="projectsStore.showDrawer"
+      title="我的项目"
+      direction="rtl"
+      size="420px"
+    >
+      <div class="flex flex-col gap-4">
+        <a
+          v-for="proj in projectsStore.projects"
+          :key="proj.name"
+          :href="proj.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="p-5 rounded-xl border border-stone-200 bg-white flex flex-col gap-3 hover:shadow-card-hover hover:border-primary-300 transition-all duration-300"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-lg text-white flex items-center justify-center flex-shrink-0" :style="{ background: proj.color }">
+              <el-icon :size="22"><component :is="proj.icon" /></el-icon>
             </div>
-            <div class="flex gap-3 text-xs text-stone-400">
-              <span class="flex items-center gap-1"><el-icon><View /></el-icon> {{ post.view_count }}</span>
+            <div class="min-w-0">
+              <h3 class="text-base font-semibold text-stone-800 truncate">{{ proj.name }}</h3>
+              <span class="text-xs text-stone-400 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
             </div>
           </div>
-        </div>
+          <p class="text-sm text-stone-500 leading-relaxed">{{ proj.desc }}</p>
+          <span class="text-xs text-primary-600 flex items-center gap-1 self-start">
+            访问项目 <el-icon><TopRight /></el-icon>
+          </span>
+        </a>
+        <el-empty v-if="projectsStore.projects.length === 0" description="还没有项目" />
       </div>
-
-      <el-empty v-if="!loading && posts.length === 0" description="暂无文章" />
-    </div>
-
-    <!-- 分页 -->
-    <div class="flex justify-center py-8" v-if="total > pageSize">
-      <el-pagination
-        v-model:current-page="currentPage"
-        :page-size="pageSize"
-        :total="total"
-        layout="prev, pager, next"
-        @current-change="handlePageChange"
-      />
-    </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search } from '@element-plus/icons-vue'
-import { formatDate, getCategoryType } from '../utils/helpers'
-import api from '../api'
+import { useProjectsStore } from '../stores/projects'
 
-/* =========================================================
- * 我的项目列表（部署上线的网址都写在这里）
- * 添加项目：复制一段 { ... } 改 name / url / desc 即可
- * icon 可用 Element Plus 图标名：Monitor、Link、ChatDotRound、
- *   ShoppingCart、Football、VideoPlay、Picture 等
- * ========================================================= */
-const projects = ref([
-  {
-    name: '英语学习网',
-    url: 'https://english-mauve-seven.vercel.app',
-    desc: 'React + Vite 英语学习网站：单词卡片、每日一句、单词测验、生词本',
-    icon: 'Reading',
-    color: '#409eff'
-  },
-  {
-    name: '个人博客',
-    url: 'https://leexim60-blog.vercel.app',
-    desc: '本站 · Vue 3 + Element Plus + Node.js + MySQL 全栈博客',
-    icon: 'Monitor',
-    color: '#42b883'
-  },
-  {
-    name: '博客后端 API',
-    url: 'https://blog-server-leexim60.onrender.com/api/health',
-    desc: 'Render 部署的 Node.js 接口服务（健康检查地址）',
-    icon: 'Connection',
-    color: '#68a063'
-  }
-  // 在下面继续添加你的项目，例如：
-  // {
-  //   name: '低代码搭建平台',
-  //   url: 'https://xxx.vercel.app',
-  //   desc: '拖拽搭建页面，一键导出 Vue 3 代码',
-  //   icon: 'SetUp',
-  //   color: '#409eff'
-  // }
-])
-
-const router = useRouter()
-const posts = ref([])
-const categories = ref([])
-const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-const activeCategory = ref(null)
-const keyword = ref('')
-const stats = ref({ totalPosts: 0, totalViews: 0, totalCategories: 0 })
-
-async function fetchCategories() {
-  try {
-    const res = await api.get('/categories')
-    if (res.code === 200) {
-      categories.value = res.data
-      stats.value.totalCategories = res.data.length
-    }
-  } catch {}
-}
-
-async function fetchStats() {
-  try {
-    const res = await api.get('/posts', { params: { page: 1, pageSize: 1 } })
-    if (res.code === 200) {
-      stats.value.totalPosts = res.data.total
-    }
-  } catch {}
-}
-
-async function fetchPosts() {
-  loading.value = true
-  try {
-    const params = {
-      page: currentPage.value,
-      pageSize: pageSize.value
-    }
-    if (activeCategory.value) params.category_id = activeCategory.value
-    if (keyword.value) params.keyword = keyword.value
-
-    const res = await api.get('/posts', { params })
-    if (res.code === 200) {
-      posts.value = res.data.list
-      total.value = res.data.total
-      stats.value.totalViews = res.data.list.reduce((sum, p) => sum + (p.view_count || 0), 0)
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-function selectCategory(catId) {
-  activeCategory.value = catId
-  currentPage.value = 1
-  fetchPosts()
-}
-
-function handleSearch() {
-  currentPage.value = 1
-  fetchPosts()
-}
-
-function handlePageChange(page) {
-  currentPage.value = page
-  fetchPosts()
-}
-
-onMounted(() => {
-  fetchCategories()
-  fetchStats()
-  fetchPosts()
-})
+const projectsStore = useProjectsStore()
 </script>
 
 <style scoped>
-.filter-item {
-  @apply flex items-center gap-1 px-4 py-2 rounded-full bg-white text-sm text-stone-600 cursor-pointer transition-all duration-200 border border-stone-200 hover:text-primary-600 hover:border-primary-300;
-}
-.filter-item.active {
-  @apply bg-primary-500 text-white border-primary-500;
-}
-.search-input :deep(.el-input__wrapper) {
-  @apply rounded-xl;
-}
 @media (max-width: 768px) {
-  .card.flex {
-    @apply flex-col;
-  }
-  .card.flex > div:first-child {
-    @apply w-full min-h-36 max-h-44;
-  }
-  .filter-item {
-    @apply whitespace-nowrap;
+  :deep(.el-drawer) {
+    width: 85% !important;
   }
 }
 </style>
