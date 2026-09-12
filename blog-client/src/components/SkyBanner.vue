@@ -94,7 +94,7 @@ function setupCanvas() {
 
 function createStars() {
   const area = canvasWidth * canvasHeight
-  const count = Math.min(280, Math.max(120, Math.round(area / 7200)))
+  const count = Math.min(900, Math.max(300, Math.round(area / 2400)))
   const starColors = [
     { r: 229, g: 239, b: 255 },
     { r: 255, g: 244, b: 230 },
@@ -144,7 +144,7 @@ function createWindParticles() {
 }
 
 function scheduleNextMeteor(now) {
-  nextMeteorAt = now + 4000 + Math.random() * 3000
+  nextMeteorAt = now + 1300 + Math.random() * 1300
 }
 
 function spawnMeteor() {
@@ -359,8 +359,8 @@ function drawMeteors(deltaMs) {
     if (progress >= 1) return false
 
     const step = deltaMs / 1000
-    meteor.x += Math.cos(meteor.angle) * meteor.speed * step
-    meteor.y += Math.sin(meteor.angle) * meteor.speed * step
+    meteor.x += Math.cos(meteor.angle) * meteor.speed * step * 1.6
+    meteor.y += Math.sin(meteor.angle) * meteor.speed * step * 1.6
 
     const t = 1 - progress
     const opacity = t * t * (3 - 2 * t)
