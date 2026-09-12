@@ -164,6 +164,13 @@ import api from '../api'
  * ========================================================= */
 const projects = ref([
   {
+    name: '英语学习网',
+    url: 'https://english-zyur.vercel.app',
+    desc: 'React + Vite 英语学习网站：单词卡片、每日一句、单词测验、生词本',
+    icon: 'Reading',
+    color: '#409eff'
+  },
+  {
     name: '个人博客',
     url: 'https://leexim60-blog.vercel.app',
     desc: '本站 · Vue 3 + Element Plus + Node.js + MySQL 全栈博客',
