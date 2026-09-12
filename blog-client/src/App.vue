@@ -10,10 +10,7 @@
           <router-link to="/" class="nav-link">
             <el-icon><HomeFilled /></el-icon> 首页
           </router-link>
-          <router-link to="/about" class="nav-link">
-            <el-icon><User /></el-icon> 关于
-          </router-link>
-          <div class="nav-link cursor-pointer" @click="openProjects">
+          <div class="nav-link" @click="openProjects">
             <el-icon><Grid /></el-icon> 我的项目
           </div>
         </nav>
@@ -23,9 +20,6 @@
       <div v-if="showMobileMenu" class="md:hidden bg-white border-b border-stone-200 px-5 py-3">
         <router-link to="/" class="mobile-nav-link" @click="showMobileMenu = false">
           <el-icon><HomeFilled /></el-icon> 首页
-        </router-link>
-        <router-link to="/about" class="mobile-nav-link" @click="showMobileMenu = false">
-          <el-icon><User /></el-icon> 关于
         </router-link>
         <a class="mobile-nav-link" @click="openProjects">
           <el-icon><Grid /></el-icon> 我的项目
