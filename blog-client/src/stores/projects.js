@@ -19,14 +19,6 @@ export const useProjectsStore = defineStore('projects', () => {
       icon: 'Reading',
       color: '#409eff'
     }
-    // 在下面继续添加你的项目，例如：
-    // {
-    //   name: '低代码搭建平台',
-    //   url: 'https://xxx.vercel.app',
-    //   desc: '拖拽搭建页面，一键导出 Vue 3 代码',
-    //   icon: 'SetUp',
-    //   color: '#409eff'
-    // }
   ])
 
   function open() {
