@@ -1,25 +1,55 @@
 <template>
-  <div class="home max-w-3xl mx-auto px-5">
-    <!-- 头部横幅 -->
-    <div class="card relative overflow-hidden p-12 mb-8 rounded-2xl bg-gradient-to-br from-rose-50 via-warm-50 to-amber-50 text-center">
-      <div class="relative z-10">
-        <div class="w-20 h-20 rounded-full bg-white flex items-center justify-center mx-auto mb-5 text-primary-500 shadow-md">
-          <el-icon :size="40"><HomeFilled /></el-icon>
-        </div>
-        <h1 class="text-3xl font-bold text-stone-800 mb-3">Hi, 我是陈Hello</h1>
-        <p class="text-base text-stone-500 mb-8">欢迎来到我的博客，这里汇总了我部署上线的项目，欢迎访问体验</p>
-        <el-button type="primary" size="large" round @click="projectsStore.open()">
-          <el-icon class="mr-1"><Grid /></el-icon> 查看我的项目
-        </el-button>
-      </div>
-    </div>
+  <div class="home">
+    <!-- 全屏星空横幅 -->
+    <SkyBanner @open-projects="projectsStore.open()" />
 
-    <!-- 项目侧边栏（与顶栏共用） -->
+    <!-- 项目展示区 -->
+    <section class="bg-[#040e1c] text-white py-20 px-5">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-12">
+          <h2 class="text-2xl sm:text-3xl font-bold mb-3 tracking-wide">我的项目</h2>
+          <p class="text-white/50 text-sm">我部署上线的作品，点击卡片即可访问</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <a
+            v-for="proj in projectsStore.projects"
+            :key="proj.name"
+            :href="proj.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="project-card group relative rounded-2xl p-6 flex flex-col gap-4 overflow-hidden"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
+                :style="{ background: `linear-gradient(135deg, ${proj.color}, ${proj.color}cc)` }"
+              >
+                <el-icon :size="24" class="text-white"><component :is="proj.icon" /></el-icon>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-lg font-semibold truncate">{{ proj.name }}</h3>
+                <span class="text-xs text-white/40 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
+              </div>
+            </div>
+            <p class="text-sm text-white/60 leading-relaxed flex-1">{{ proj.desc }}</p>
+            <span class="text-xs flex items-center gap-1 self-start text-white/50 transition-colors duration-300 group-hover:text-white">
+              访问项目 <el-icon class="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"><TopRight /></el-icon>
+            </span>
+          </a>
+        </div>
+
+        <el-empty v-if="projectsStore.projects.length === 0" description="还没有项目" />
+      </div>
+    </section>
+
+    <!-- 项目侧边栏（顶栏触发，深色玻璃风格） -->
     <el-drawer
       v-model="projectsStore.showDrawer"
       title="我的项目"
       direction="rtl"
-      size="420px"
+      size="400px"
+      class="projects-drawer"
     >
       <div class="flex flex-col gap-4">
         <a
@@ -28,19 +58,22 @@
           :href="proj.url"
           target="_blank"
           rel="noopener noreferrer"
-          class="p-5 rounded-xl border border-stone-200 bg-white flex flex-col gap-3 hover:shadow-card-hover hover:border-primary-300 transition-all duration-300"
+          class="project-card !rounded-2xl p-5 flex flex-col gap-3"
         >
           <div class="flex items-center gap-3">
-            <div class="w-11 h-11 rounded-lg text-white flex items-center justify-center flex-shrink-0" :style="{ background: proj.color }">
-              <el-icon :size="22"><component :is="proj.icon" /></el-icon>
+            <div
+              class="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg"
+              :style="{ background: `linear-gradient(135deg, ${proj.color}, ${proj.color}cc)` }"
+            >
+              <el-icon :size="22" class="text-white"><component :is="proj.icon" /></el-icon>
             </div>
             <div class="min-w-0">
-              <h3 class="text-base font-semibold text-stone-800 truncate">{{ proj.name }}</h3>
-              <span class="text-xs text-stone-400 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
+              <h3 class="text-base font-semibold text-white truncate">{{ proj.name }}</h3>
+              <span class="text-xs text-white/40 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
             </div>
           </div>
-          <p class="text-sm text-stone-500 leading-relaxed">{{ proj.desc }}</p>
-          <span class="text-xs text-primary-600 flex items-center gap-1 self-start">
+          <p class="text-sm text-white/60 leading-relaxed">{{ proj.desc }}</p>
+          <span class="text-xs flex items-center gap-1 self-start text-white/50">
             访问项目 <el-icon><TopRight /></el-icon>
           </span>
         </a>
@@ -51,12 +84,64 @@
 </template>
 
 <script setup>
+import SkyBanner from '../components/SkyBanner.vue'
 import { useProjectsStore } from '../stores/projects'
 
 const projectsStore = useProjectsStore()
 </script>
 
 <style scoped>
+.project-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition:
+    transform 300ms ease,
+    background-color 300ms ease,
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+
+.project-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 20px 40px rgba(2, 8, 20, 0.5);
+}
+
+.project-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 0%, rgba(120, 160, 255, 0.12), transparent 60%);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+.project-card:hover::before {
+  opacity: 1;
+}
+
+/* 侧边栏深色化 */
+:deep(.el-drawer) {
+  background-color: #061428 !important;
+}
+
+:deep(.el-drawer__header) {
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+:deep(.el-drawer__close-btn) {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+:deep(.el-drawer__body) {
+  padding-top: 0;
+}
+
 @media (max-width: 768px) {
   :deep(.el-drawer) {
     width: 85% !important;
