@@ -32,9 +32,9 @@
               </template>
             </el-dropdown>
           </template>
-          <el-button v-else size="small" round type="primary" plain @click="userStore.openLogin()">
-            登录
-          </el-button>
+          <button v-else class="launch-btn" @click="userStore.openLogin()">
+            <span class="launch-btn-spark">✦</span> 登录 / 注册
+          </button>
         </div>
         <el-icon class="md:hidden text-xl cursor-pointer text-white" @click="showMobileMenu = !showMobileMenu"><Menu /></el-icon>
       </div>
@@ -49,8 +49,8 @@
         <a class="mobile-nav-link" @click="openProjects">
           <el-icon><Grid /></el-icon> 我的项目
         </a>
-        <a v-if="!userStore.isLoggedIn" class="mobile-nav-link" @click="userStore.openLogin(); showMobileMenu = false">
-          <el-icon><UserFilled /></el-icon> 登录
+        <a v-if="!userStore.isLoggedIn" class="mobile-launch" @click="userStore.openLogin(); showMobileMenu = false">
+          ✦ 登录 / 注册，开启你的星球
         </a>
         <a v-else class="mobile-nav-link" @click="onUserCommand('logout')">
           <el-icon><SwitchButton /></el-icon> 退出登录 ({{ userStore.user?.nickname }})
@@ -120,5 +120,57 @@ function onUserCommand(cmd) {
 }
 .mobile-nav-link {
   @apply flex items-center gap-2 px-4 py-3 rounded-lg text-white/70 transition-all duration-200 hover:text-white hover:bg-white/10 cursor-pointer;
+}
+
+/* 醒目的渐变发光登录按钮 */
+.launch-btn {
+  position: relative;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #4f7cff, #7c5cff, #b45cff);
+  background-size: 160% auto;
+  box-shadow: 0 0 14px rgba(110, 110, 255, 0.5);
+  transition: all 0.3s;
+  animation: btn-breathe 3s ease-in-out infinite;
+}
+.launch-btn:hover {
+  background-position: right center;
+  transform: translateY(-1px);
+  box-shadow: 0 0 22px rgba(130, 110, 255, 0.7);
+}
+@keyframes btn-breathe {
+  0%, 100% { box-shadow: 0 0 10px rgba(110, 110, 255, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(130, 110, 255, 0.65); }
+}
+.launch-btn-spark {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 12px;
+  animation: spark-spin 4s linear infinite;
+}
+@keyframes spark-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.25); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+/* 移动端菜单里的醒目登录入口 */
+.mobile-launch {
+  display: block;
+  margin: 6px 8px 2px;
+  padding: 12px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #4f7cff, #7c5cff);
+  box-shadow: 0 0 16px rgba(110, 110, 255, 0.45);
+  cursor: pointer;
 }
 </style>

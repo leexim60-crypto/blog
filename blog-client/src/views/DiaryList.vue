@@ -14,7 +14,9 @@
         <el-button v-if="userStore.isLoggedIn" type="primary" round @click="router.push('/diary/new')">
           <el-icon class="mr-1"><EditPen /></el-icon> 写日记
         </el-button>
-        <el-button v-else round @click="userStore.openLogin">登录后写日记</el-button>
+        <button v-else class="diary-launch" @click="userStore.openLogin">
+          ✦ 登录后写日记
+        </button>
       </div>
 
       <!-- 搜索 & 只看自己 -->
@@ -231,5 +233,30 @@ onMounted(fetchPage)
 
 :deep(.el-checkbox__label) {
   color: rgba(255, 255, 255, 0.7);
+}
+
+/* 醒目的登录引导按钮 */
+.diary-launch {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #4f7cff, #7c5cff, #b45cff);
+  background-size: 160% auto;
+  box-shadow: 0 0 16px rgba(110, 110, 255, 0.5);
+  transition: all 0.3s;
+  animation: diary-btn-breathe 3s ease-in-out infinite;
+}
+.diary-launch:hover {
+  background-position: right center;
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(130, 110, 255, 0.7);
+}
+@keyframes diary-btn-breathe {
+  0%, 100% { box-shadow: 0 0 10px rgba(110, 110, 255, 0.4); }
+  50% { box-shadow: 0 0 22px rgba(130, 110, 255, 0.65); }
 }
 </style>
