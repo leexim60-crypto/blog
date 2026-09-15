@@ -42,44 +42,7 @@
         <el-empty v-if="projectsStore.projects.length === 0" description="还没有项目" />
       </div>
     </section>
-
-    <!-- 项目侧边栏（顶栏触发，深色玻璃风格） -->
-    <el-drawer
-      v-model="projectsStore.showDrawer"
-      title="我的项目"
-      direction="rtl"
-      size="400px"
-      class="projects-drawer"
-    >
-      <div class="flex flex-col gap-4">
-        <a
-          v-for="proj in projectsStore.projects"
-          :key="proj.name"
-          :href="proj.url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="project-card !rounded-2xl p-5 flex flex-col gap-3"
-        >
-          <div class="flex items-center gap-3">
-            <div
-              class="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg"
-              :style="{ background: `linear-gradient(135deg, ${proj.color}, ${proj.color}cc)` }"
-            >
-              <el-icon :size="22" class="text-white"><component :is="proj.icon" /></el-icon>
-            </div>
-            <div class="min-w-0">
-              <h3 class="text-base font-semibold text-white truncate">{{ proj.name }}</h3>
-              <span class="text-xs text-white/40 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
-            </div>
-          </div>
-          <p class="text-sm text-white/60 leading-relaxed">{{ proj.desc }}</p>
-          <span class="text-xs flex items-center gap-1 self-start text-white/50">
-            访问项目 <el-icon><TopRight /></el-icon>
-          </span>
-        </a>
-        <el-empty v-if="projectsStore.projects.length === 0" description="还没有项目" />
-      </div>
-    </el-drawer>
+    <!-- 项目侧边栏已抽为全局组件 ProjectsDrawer，在 App.vue 中挂载，全站可用 -->
   </div>
 </template>
 
@@ -124,27 +87,5 @@ const projectsStore = useProjectsStore()
   opacity: 1;
 }
 
-/* 侧边栏深色化 */
-:deep(.el-drawer) {
-  background-color: #061428 !important;
-}
-
-:deep(.el-drawer__header) {
-  color: #fff;
-  margin-bottom: 16px;
-}
-
-:deep(.el-drawer__close-btn) {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-:deep(.el-drawer__body) {
-  padding-top: 0;
-}
-
-@media (max-width: 768px) {
-  :deep(.el-drawer) {
-    width: 85% !important;
-  }
-}
+/* 侧边栏深色化等抽屉样式已迁移至全局组件 ProjectsDrawer.vue */
 </style>

@@ -68,6 +68,8 @@
 
     <!-- 全局登录对话框 -->
     <LoginDialog />
+    <!-- 全局项目侧边栏（任意页面可打开） -->
+    <ProjectsDrawer />
 
     <footer class="text-center py-6 text-xs text-white/40 border-t border-white/10 bg-[#020810]">
       <div class="max-w-6xl mx-auto px-5">
@@ -84,6 +86,7 @@ import { ElMessage } from 'element-plus'
 import { useProjectsStore } from './stores/projects'
 import { useUserStore } from './stores/user'
 import LoginDialog from './components/LoginDialog.vue'
+import ProjectsDrawer from './components/ProjectsDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
