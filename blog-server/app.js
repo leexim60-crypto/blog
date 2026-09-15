@@ -11,16 +11,19 @@ const diaryRoutes = require('./routes/diaries');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS 配置：通过环境变量 ALLOWED_ORIGINS 设置允许的来源（逗号分隔）
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : ['http://localhost:5173', 'http://localhost:80', 'https://leexim60-blog.vercel.app'];
+// CORS 配置
+// 本项目认证采用 JWT Authorization header（非 cookie），无 CSRF 风险，
+// 因此默认允许任意来源，不依赖部署平台的环境变量配置
+// 如需收紧白名单，可设置环境变量 CORS_ALLOWED_ORIGINS（逗号分隔）
+const strictOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : null;
 
 app.use(cors({
   origin: function (origin, callback) {
     // 允许无 origin 的请求（如 Postman、服务端调用）
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    if (!strictOrigins || strictOrigins.includes('*') || strictOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('不允许的跨域请求'));
