@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "init-db": "node init-db.js",
+    "init-diary-table": "node init-diary-table.js",
     "dev": "node app.js"
   },
   "dependencies": {

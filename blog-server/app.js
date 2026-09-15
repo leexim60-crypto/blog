@@ -6,6 +6,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
 const categoryRoutes = require('./routes/categories');
+const diaryRoutes = require('./routes/diaries');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 // CORS 配置：通过环境变量 ALLOWED_ORIGINS 设置允许的来源（逗号分隔）
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : ['http://localhost:5173', 'http://localhost:80'];
+  : ['http://localhost:5173', 'http://localhost:80', 'https://leexim60-blog.vercel.app'];
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -38,6 +39,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/diaries', diaryRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

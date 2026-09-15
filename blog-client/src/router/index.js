@@ -7,6 +7,26 @@ const routes = [
     component: () => import('../views/Home.vue')
   },
   {
+    path: '/diary',
+    name: 'DiaryList',
+    component: () => import('../views/DiaryList.vue')
+  },
+  {
+    path: '/diary/new',
+    name: 'DiaryNew',
+    component: () => import('../views/DiaryEdit.vue')
+  },
+  {
+    path: '/diary/edit/:id',
+    name: 'DiaryEdit',
+    component: () => import('../views/DiaryEdit.vue')
+  },
+  {
+    path: '/diary/:id',
+    name: 'DiaryDetail',
+    component: () => import('../views/DiaryDetail.vue')
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('../views/NotFound.vue')
