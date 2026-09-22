@@ -13,6 +13,13 @@ export const useProjectsStore = defineStore('projects', () => {
 
   const projects = ref([
     {
+      name: '坦克大战 Battle City',
+      url: 'https://tank-battle-3s4.pages.dev',
+      desc: '红白机坦克大战复刻：Canvas 像素渲染、敌方 AI、基地防守、手机虚拟手柄，支持 PWA 离线安装',
+      icon: 'Aim',
+      color: '#e45c10'
+    },
+    {
       name: '英语学习网',
       url: 'https://english-mauve-seven.vercel.app',
       desc: 'React + Vite 英语学习网站：单词卡片、每日一句、单词测验、生词本',
