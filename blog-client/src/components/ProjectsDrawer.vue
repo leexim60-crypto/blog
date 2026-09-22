@@ -7,6 +7,7 @@
       direction="rtl"
       size="400px"
       class="projects-drawer"
+      modal-class="projects-drawer-mask"
     >
       <div class="flex flex-col gap-4">
         <a
@@ -65,27 +66,66 @@ const projectsStore = useProjectsStore()
   border-color: rgba(255, 255, 255, 0.22);
   box-shadow: 0 20px 40px rgba(2, 8, 20, 0.5);
 }
+</style>
 
-/* 侧边栏深色化 */
-:deep(.el-drawer) {
-  background-color: #061428 !important;
+<!--
+  抽屉面板被 Teleport 到 body，且自定义 class 是经 $attrs 落到面板自身
+  （.el-drawer）上的。scoped 的 :deep(.el-drawer) 会编译成
+  [data-v-x] .el-drawer 这种「后代」选择器，而面板自己就带着 data-v-x，
+  永远匹配不到 → 深色样式全部失效，抽屉保持 Element Plus 默认白底，
+  白字叠白底自然「一点字都看不见」。
+  所以这里必须用非 scoped 样式，并靠自定义 class 限定作用范围，
+  避免污染其它抽屉/弹窗。
+-->
+<style>
+.projects-drawer.el-drawer {
+  background: linear-gradient(180deg, #0a1c33 0%, #061428 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -20px 0 60px rgba(2, 8, 20, 0.6);
+
+  /* 让抽屉内所有 Element Plus 组件（el-empty 等）自动跟随深色主题 */
+  --el-text-color-primary: #ffffff;
+  --el-text-color-regular: rgba(255, 255, 255, 0.75);
+  --el-text-color-secondary: rgba(255, 255, 255, 0.5);
+  --el-text-color-placeholder: rgba(255, 255, 255, 0.35);
+  --el-bg-color: #061428;
+  --el-bg-color-overlay: #061428;
+  --el-fill-color-blank: rgba(255, 255, 255, 0.05);
+  --el-border-color: rgba(255, 255, 255, 0.12);
+  --el-border-color-light: rgba(255, 255, 255, 0.1);
 }
 
-:deep(.el-drawer__header) {
+.projects-drawer .el-drawer__header {
   color: #fff;
   margin-bottom: 16px;
 }
 
-:deep(.el-drawer__close-btn) {
+.projects-drawer .el-drawer__title {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.projects-drawer .el-drawer__close-btn {
   color: rgba(255, 255, 255, 0.7);
 }
 
-:deep(.el-drawer__body) {
+.projects-drawer .el-drawer__close-btn:hover i {
+  color: #fff;
+}
+
+.projects-drawer .el-drawer__body {
   padding-top: 0;
 }
 
+/* 遮罩：加深 + 模糊，与博客玻璃质感统一 */
+.projects-drawer-mask.el-overlay {
+  background-color: rgba(2, 8, 20, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
 @media (max-width: 768px) {
-  :deep(.el-drawer) {
+  .projects-drawer.el-drawer {
     width: 85% !important;
   }
 }
