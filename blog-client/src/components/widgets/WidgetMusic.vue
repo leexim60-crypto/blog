@@ -5,13 +5,11 @@
       <span class="widget-badge">{{ badge }}</span>
     </div>
 
-    <!-- 初始加载 -->
     <div v-if="loading" class="widget-skeleton">
       <el-icon class="is-loading" :size="20"><Loading /></el-icon>
       <span>正在获取歌单…</span>
     </div>
 
-    <!-- 完全没筛到可播歌曲 -->
     <div v-else-if="!tracks.length" class="widget-skeleton">
       <el-icon :size="20"><Headset /></el-icon>
       <span class="flex-1">{{ errorText || '暂时没有可播放的歌曲' }}</span>
@@ -20,7 +18,7 @@
 
     <template v-else>
       <div class="music-main">
-        <!-- 唱片封面 -->
+        <!-- 唱片封面（封面图源多为 http，https 站点下会失败，自动回退为图标） -->
         <div class="music-disc" :class="{ 'is-playing': playing }">
           <img
             v-if="current.pic && !coverFailed"
@@ -33,15 +31,15 @@
         </div>
         <div class="music-meta">
           <p class="music-title" :title="current.title">{{ current.title || '未选择歌曲' }}</p>
-          <p class="music-artist" :title="current.author">{{ current.author }}</p>
+          <p class="music-artist" :title="current.artist">{{ current.artist }}</p>
           <p class="music-tip">{{ tipText }}</p>
         </div>
       </div>
 
-      <!-- 筛选进度 -->
-      <div v-if="probing" class="music-probing">
-        <span class="music-probing-bar"><i :style="{ width: probePercent + '%' }"></i></span>
-        <span class="music-probing-text">正在筛选可播放的歌曲…已找到 {{ found }} 首</span>
+      <!-- 取流中 -->
+      <div v-if="resolving" class="music-probing">
+        <span class="music-probing-bar is-indeterminate"><i></i></span>
+        <span class="music-probing-text">正在获取播放地址…</span>
       </div>
 
       <div class="music-progress" @click="seek">
@@ -64,7 +62,6 @@
       </div>
     </template>
 
-    <!-- 隐藏的播放器本体 -->
     <audio
       ref="audioEl"
       preload="none"
@@ -84,31 +81,28 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { fetchJson, readCache, writeCache } from '../../utils/widgetFetch'
 
 /* =========================================================
- * 为什么需要「预探测」：
- * 公共 Meting 接口返回的音频直链里，约有一半因版权限制是 404 的，
- * 直接播就会出现「点了没反应 / 一直跳过」。
- * 好在这些直链都带 Access-Control-Allow-Origin: *，
- * 所以浏览器可以先 fetch 一小段（Range: bytes=0-1023）判断真伪，
- * 只把确认能播的歌放进播放列表。
+ * 音源：GDStudio 音乐台（music-api.gdstudio.xyz）
+ *
+ * 为什么换掉之前的 Meting 公共实例：
+ * 之前用 api.i-meto.com 拿到的直链约一半是 404（版权限制），
+ * 只能靠「预探测」筛掉死歌，实测命中率仅 42%，体验很差。
+ * GDStudio 抽样 10/10 全部可播且是 320kbps，所以这里改成：
+ *   - 只请求一次歌单（200 首，随机打乱）
+ *   - 点播放时才按需取该首的播放地址（1 次请求）
+ * 请求量因此极低，也避开了接口的限流（请求过密会 503）。
  * ========================================================= */
 
-const INSTANCE = 'https://api.i-meto.com/meting/api'
-// 网易云「热歌榜」+「飙升榜」：候选池约 250+ 首，打乱后筛选
-const POOL_LISTS = ['3778678', '19723756']
-const CACHE_KEY = 'widget_music_playable_v3'
-const CACHE_TTL = 6 * 60 * 60 * 1000 // 6 小时内复用筛选结果，避免重复探测
-
-const TARGET = 18 // 目标可播曲目数
-const MAX_PROBE = 110 // 最多探测多少首，防止无限请求
-const CONCURRENCY = 6 // 并发探测数
-const PROBE_TIMEOUT = 5000
+const API = 'https://music-api.gdstudio.xyz/api.php'
+const SOURCE = 'netease'
+const PLAYLIST_ID = '3778678' // 网易云热歌榜
+const CACHE_KEY = 'widget_music_tracks_v4'
+const CACHE_TTL = 6 * 60 * 60 * 1000
 
 const audioEl = ref(null)
 const tracks = ref([])
 const index = ref(0)
 const loading = ref(true)
-const probing = ref(false)
-const found = ref(0)
+const resolving = ref(false)
 const errorText = ref('')
 const playing = ref(false)
 const muted = ref(false)
@@ -118,17 +112,15 @@ const coverFailed = ref(false)
 
 const current = computed(() => tracks.value[index.value] || {})
 const progress = computed(() => (dur.value ? Math.min(100, (cur.value / dur.value) * 100) : 0))
-const probePercent = computed(() => Math.min(100, Math.round((found.value / TARGET) * 100)))
 
 const badge = computed(() => {
-  if (probing.value) return '筛选中'
   if (!tracks.value.length) return '网易云'
-  return `可播 ${tracks.value.length} 首`
+  return `${tracks.value.length} 首`
 })
 
 const tipText = computed(() => {
-  if (probing.value) return '已过滤版权受限的歌曲，可放心播放'
-  return '点击播放 · 曲目已预先验证可播'
+  if (resolving.value) return '正在获取播放地址…'
+  return '点击播放 · 320kbps 音质'
 })
 
 const fmt = (s) => {
@@ -136,52 +128,31 @@ const fmt = (s) => {
   return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0')
 }
 
-/** 探测单首歌是否真的可播（只取前 1KB） */
-async function probePlayable(url) {
-  try {
-    const res = await fetch(url, {
-      headers: { Range: 'bytes=0-1023' },
-      signal: AbortSignal.timeout(PROBE_TIMEOUT)
-    })
-    const ct = res.headers.get('content-type') || ''
-    return res.ok && ct.includes('audio')
-  } catch (e) {
-    return false
+/** 把 GDStudio 返回的网易云原始结构压成组件用的扁平结构 */
+function normalize(t) {
+  return {
+    id: t.id,
+    title: t.name || '未知曲目',
+    artist: (t.ar || []).map((a) => a.name).join(' / ') || '未知歌手',
+    // 封面多为 http，https 站点下加载会失败 → 由 @error 回退成图标
+    pic: (t.al && t.al.picUrl) || '',
+    duration: t.dt ? t.dt / 1000 : 0
   }
 }
 
-/** 拉取多个歌单并去重 */
-async function fetchPool() {
-  const settled = await Promise.allSettled(
-    POOL_LISTS.map((id) =>
-      fetchJson(`${INSTANCE}?server=netease&type=playlist&id=${id}`, { timeout: 12000 })
-    )
-  )
-  const seen = new Set()
-  const pool = []
-  for (const r of settled) {
-    if (r.status !== 'fulfilled' || !Array.isArray(r.value)) continue
-    for (const t of r.value) {
-      if (!t || !t.url || !t.title) continue
-      const key = t.title + '|' + t.author
-      if (seen.has(key)) continue
-      seen.add(key)
-      pool.push(t)
-    }
-  }
-  return pool
+/** 取某首歌的播放地址（GDStudio 返回的是有时效的直链，所以不缓存） */
+async function resolveUrl(id) {
+  const res = await fetchJson(`${API}?types=url&source=${SOURCE}&id=${id}&br=320`, { timeout: 15000 })
+  return res && res.url ? res.url : ''
 }
 
 async function loadTracks(force = false) {
   loading.value = true
-  probing.value = false
   errorText.value = ''
-  found.value = 0
 
-  // 1) 命中缓存：直接可用，无需任何探测
   if (!force) {
     const cached = readCache(CACHE_KEY, CACHE_TTL)
-    if (Array.isArray(cached) && cached.length >= 3) {
+    if (Array.isArray(cached) && cached.length) {
       tracks.value = cached.slice().sort(() => Math.random() - 0.5)
       index.value = 0
       loading.value = false
@@ -189,57 +160,26 @@ async function loadTracks(force = false) {
     }
   }
 
-  // 2) 拉候选池
-  let pool = []
   try {
-    pool = await fetchPool()
-  } catch (e) {
-    pool = []
-  }
-  if (!pool.length) {
-    tracks.value = []
-    errorText.value = '歌单接口暂时不可用'
-    loading.value = false
-    return
-  }
-
-  // 3) 打乱后并发探测，边筛边上屏
-  loading.value = false
-  probing.value = true
-
-  const shuffled = pool.slice().sort(() => Math.random() - 0.5)
-  const playable = []
-  let cursor = 0
-
-  while (playable.length < TARGET && cursor < shuffled.length && cursor < MAX_PROBE) {
-    const batch = shuffled.slice(cursor, cursor + CONCURRENCY)
-    cursor += batch.length
-
-    const results = await Promise.all(batch.map((t) => probePlayable(t.url)))
-    batch.forEach((t, i) => {
-      if (results[i]) playable.push(t)
+    const res = await fetchJson(`${API}?types=playlist&source=${SOURCE}&id=${PLAYLIST_ID}`, {
+      timeout: 15000
     })
+    const list = res?.playlist?.tracks
+    if (!Array.isArray(list) || !list.length) throw new Error('empty')
 
-    found.value = playable.length
-    // 一旦有可播歌曲就立刻上屏，用户不用等筛选全部结束
-    if (playable.length) {
-      const wasEmpty = tracks.value.length === 0
-      tracks.value = playable.slice()
-      if (wasEmpty) index.value = 0
-    }
-  }
-
-  probing.value = false
-
-  if (playable.length) {
-    writeCache(CACHE_KEY, playable)
-  } else {
+    const normalized = list.map(normalize).filter((t) => t.id)
+    writeCache(CACHE_KEY, normalized)
+    tracks.value = normalized.slice().sort(() => Math.random() - 0.5)
+    index.value = 0
+  } catch (e) {
     tracks.value = []
-    errorText.value = '暂时没筛到可播放的歌曲'
+    errorText.value = '歌单接口暂时不可用（可能被限流）'
+  } finally {
+    loading.value = false
   }
 }
 
-/** 换一批：清掉缓存重新筛选 */
+/** 换一批：重新拉歌单并打乱 */
 function reload() {
   const el = audioEl.value
   if (el) {
@@ -255,14 +195,27 @@ function reload() {
 
 async function play() {
   const el = audioEl.value
-  if (!el || !current.value.url) return
+  const track = current.value
+  if (!el || !track.id) return
+
+  resolving.value = true
   coverFailed.value = false
-  el.src = current.value.url
-  el.load()
   try {
+    const url = await resolveUrl(track.id)
+    if (!url) {
+      // 这首歌拿不到地址（版权/限流），直接跳下一首
+      resolving.value = false
+      if (tracks.value.length > 1) next()
+      return
+    }
+    el.src = url
+    el.load()
     await el.play()
   } catch (e) {
-    playing.value = false
+    // 失败交给 onError / 这里的兜底处理
+    if (!el.getAttribute('src') && tracks.value.length > 1) next()
+  } finally {
+    resolving.value = false
   }
 }
 
@@ -313,9 +266,7 @@ function seek(e) {
   cur.value = el.currentTime
 }
 
-/* 播放出错处理：
-   曲目已预先筛过，这里出错多半是网络抖动，跳过几首还不行就停下并提示，
-   避免像旧版那样连续失败后彻底卡死（点了永远没反应）。 */
+/* 出错处理：连续多次失败就停下并提示，避免无限跳过把接口刷到限流 */
 let consecutiveErr = 0
 
 function onPlaying() {
@@ -327,12 +278,12 @@ function onError() {
   consecutiveErr++
   if (consecutiveErr > 3) {
     playing.value = false
-    errorText.value = '网络异常，请点刷新重试'
+    errorText.value = '播放失败较多，请点刷新重试'
     return
   }
   setTimeout(() => {
     if (playing.value) next()
-  }, 300)
+  }, 400)
 }
 
 onMounted(() => loadTracks())
@@ -408,7 +359,6 @@ onBeforeUnmount(() => {
   line-height: 1.4;
 }
 
-/* 筛选进度条 */
 .music-probing {
   margin-top: 12px;
 }
@@ -418,14 +368,21 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
+  position: relative;
 }
-.music-probing-bar i {
-  display: block;
+.music-probing-bar.is-indeterminate i {
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #3ddc97, #4fd1c5);
-  box-shadow: 0 0 10px rgba(61, 220, 151, 0.5);
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg, #4f7cff, #b45cff);
+  animation: indeterminate 1.1s ease-in-out infinite;
+}
+@keyframes indeterminate {
+  0% { left: -40%; }
+  100% { left: 100%; }
 }
 .music-probing-text {
   display: block;
