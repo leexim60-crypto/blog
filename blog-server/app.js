@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
 const categoryRoutes = require('./routes/categories');
 const diaryRoutes = require('./routes/diaries');
+const statsRoutes = require('./routes/stats');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,6 +44,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/diaries', diaryRoutes);
+app.use('/api/stats', statsRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

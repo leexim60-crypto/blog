@@ -70,6 +70,8 @@
     <LoginDialog />
     <!-- 全局项目侧边栏（任意页面可打开） -->
     <ProjectsDrawer />
+    <!-- 页面小挂件（右侧悬浮，可折叠 / 可自定义） -->
+    <WidgetBoard />
 
     <footer class="text-center py-6 text-xs text-white/40 border-t border-white/10 bg-[#020810]">
       <div class="max-w-6xl mx-auto px-5">
@@ -87,6 +89,7 @@ import { useProjectsStore } from './stores/projects'
 import { useUserStore } from './stores/user'
 import LoginDialog from './components/LoginDialog.vue'
 import ProjectsDrawer from './components/ProjectsDrawer.vue'
+import WidgetBoard from './components/widgets/WidgetBoard.vue'
 
 const route = useRoute()
 const router = useRouter()

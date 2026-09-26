@@ -20,6 +20,13 @@ export const useProjectsStore = defineStore('projects', () => {
       color: '#e45c10'
     },
     {
+      name: '四国战机 STRIKERS 1945',
+      url: '/games/strikers-1945.html',
+      desc: '彩京街机致敬版纵版弹幕射击：单文件 Canvas 引擎、四种机型、蓄力超必杀、Boss 战、全合成音效，手机虚拟摇杆可玩',
+      icon: 'Promotion',
+      color: '#00b4d8'
+    },
+    {
       name: '英语学习网',
       url: 'https://english-mauve-seven.vercel.app',
       desc: 'React + Vite 英语学习网站：单词卡片、每日一句、单词测验、生词本',

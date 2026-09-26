@@ -1,5 +1,8 @@
 <template>
-  <section class="banner-bg relative w-full h-[100svh] min-h-[540px] overflow-hidden text-white">
+  <section
+    class="banner-bg relative w-full h-[100svh] min-h-[540px] overflow-hidden text-white"
+    :style="bannerStyle"
+  >
     <canvas ref="skyCanvas" class="sky-canvas" aria-hidden="true"></canvas>
     <div class="sky-overlay" aria-hidden="true"></div>
 
@@ -35,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
 defineEmits(['openProjects'])
 
@@ -53,6 +56,28 @@ let nextMeteorAt = 0
 let reducedMotion = false
 const moonX = 0.78
 const moonY = 0.15
+
+/* 自定义横幅壁纸：由「每日一图」小组件写入 localStorage，
+   这里读取后叠在星空画布之上；没有设置时保持默认纯星空。 */
+const BANNER_KEY = 'blog_banner_wallpaper'
+const bannerWallpaper = ref('')
+const bannerStyle = computed(() =>
+  bannerWallpaper.value
+    ? {
+        backgroundImage: `linear-gradient(180deg, rgba(3,8,18,.25) 0%, rgba(3,8,18,.72) 100%), url("${bannerWallpaper.value}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }
+    : {}
+)
+
+function syncBannerWallpaper() {
+  try {
+    bannerWallpaper.value = localStorage.getItem(BANNER_KEY) || ''
+  } catch (e) {
+    bannerWallpaper.value = ''
+  }
+}
 
 const easeSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2
 const smoothStep = (e0, e1, x) => {
@@ -438,6 +463,9 @@ function renderFrame(timestamp) {
 
 onMounted(() => {
   reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  syncBannerWallpaper()
+  window.addEventListener('banner-wallpaper-change', syncBannerWallpaper)
+  window.addEventListener('storage', syncBannerWallpaper)
   setupCanvas()
   scheduleNextMeteor(performance.now())
   animationId = requestAnimationFrame(renderFrame)
@@ -448,6 +476,8 @@ onBeforeUnmount(() => {
   if (animationId !== null) cancelAnimationFrame(animationId)
   if (resizeId !== null) cancelAnimationFrame(resizeId)
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('banner-wallpaper-change', syncBannerWallpaper)
+  window.removeEventListener('storage', syncBannerWallpaper)
 })
 </script>
 
