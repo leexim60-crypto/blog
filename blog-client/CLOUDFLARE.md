@@ -128,6 +128,31 @@ catch(e){console.log('FAIL: '+e.message)}"
 
 ---
 
+### `Error: Cannot find cwd: /opt/buildhome/repo/npm run build`
+
+**原因**：Dashboard 里的两个输入框填反了——把构建命令写进了 **Root directory**，
+或者把 `blog-client` 写进了 Build command。日志里 `cwd` 后面跟的是 `/opt/buildhome/repo/npm run build`，
+说明它把 `npm run build` 当成目录路径去找了。
+
+**正确填法**：
+
+| 字段 | 值 | 位置 |
+|---|---|---|
+| Root directory | `blog-client` | 在 **Advanced** / **(advanced)** 折叠项里，容易漏 |
+| Build command | `npm run build` | |
+| Build output directory | `dist` | 相对 Root directory，所以不是 `blog-client/dist` |
+
+改完保存，直接 **Deployments → Retry deployment** 重试，不需要重新推代码。
+
+> 附带说明：`No Wrangler configuration file found. Continuing.` 是 Pages 构建的**正常日志**，
+> 不是错误，不用管。
+
+**为什么 output 是 `dist` 而不是 `blog-client/dist`**：输出目录是**相对 Root directory** 解析的。
+Root directory 一填对，构建的工作目录就变成 `/opt/buildhome/repo/blog-client`，
+`npm run build` 能找到 `package.json`，产物落在 `blog-client/dist`，所以写 `dist` 即可。
+
+---
+
 ## 四、部署后自检
 
 | 检查项 | 预期 |
