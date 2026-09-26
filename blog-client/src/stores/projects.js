@@ -21,7 +21,8 @@ export const useProjectsStore = defineStore('projects', () => {
     },
     {
       name: '四国战机 STRIKERS 1945',
-      url: '/games/strikers-1945.html',
+      // 独立部署的站点（Cloudflare Workers），不是博客的子页面
+      url: 'https://strikers-1945.leexim60.workers.dev',
       desc: '彩京街机致敬版纵版弹幕射击：单文件 Canvas 引擎、四种机型、蓄力超必杀、Boss 战、全合成音效，手机虚拟摇杆可玩',
       icon: 'Promotion',
       color: '#00b4d8'
