@@ -67,7 +67,7 @@
       preload="none"
       @timeupdate="onTime"
       @loadedmetadata="onMeta"
-      @ended="next"
+      @ended="onEnded"
       @error="onError"
       @playing="onPlaying"
       @play="playing = true"
@@ -147,6 +147,11 @@ async function resolveUrl(id) {
 }
 
 async function loadTracks(force = false) {
+  const token = ++listToken
+  // 换歌单时立刻中止正在进行的播放，避免旧歌单的曲目被异步加载回来
+  playToken++
+  loadedUrl = ''
+
   loading.value = true
   errorText.value = ''
 
@@ -164,6 +169,7 @@ async function loadTracks(force = false) {
     const res = await fetchJson(`${API}?types=playlist&source=${SOURCE}&id=${PLAYLIST_ID}`, {
       timeout: 15000
     })
+    if (token !== listToken) return // 已被更新的一次「换一批」取代
     const list = res?.playlist?.tracks
     if (!Array.isArray(list) || !list.length) throw new Error('empty')
 
@@ -172,10 +178,11 @@ async function loadTracks(force = false) {
     tracks.value = normalized.slice().sort(() => Math.random() - 0.5)
     index.value = 0
   } catch (e) {
+    if (token !== listToken) return
     tracks.value = []
     errorText.value = '歌单接口暂时不可用（可能被限流）'
   } finally {
-    loading.value = false
+    if (token === listToken) loading.value = false
   }
 }
 
@@ -185,38 +192,68 @@ function reload() {
   if (el) {
     el.pause()
     el.removeAttribute('src')
+    el.load() // 仅移除 src 不会重置元素，currentSrc 会残留上一首
   }
   playing.value = false
   cur.value = 0
   dur.value = 0
   consecutiveErr = 0
-  loadTracks(true)
+  loadTracks(true) // 内部会推进 playToken / listToken 并清空 loadedUrl
 }
+
+/* 播放代次：取流是异步的，切歌后旧请求的结果必须丢弃，否则会乱序覆盖 src */
+let playToken = 0
+/* 当前「已经加载进 audio 元素」的直链，用来判断点播放是续播还是重新取流 */
+let loadedUrl = ''
+/* 连续播放失败次数，超过阈值就停下，避免无限跳过把接口刷到限流 */
+let consecutiveErr = 0
+/* 换一批的代次：重新拉歌单是异步的，期间不能被旧歌单的播放结果污染 */
+let listToken = 0
 
 async function play() {
   const el = audioEl.value
   const track = current.value
   if (!el || !track.id) return
 
+  const token = ++playToken
   resolving.value = true
   coverFailed.value = false
+
+  let url = ''
   try {
-    const url = await resolveUrl(track.id)
-    if (!url) {
-      // 这首歌拿不到地址（版权/限流），直接跳下一首
-      resolving.value = false
-      if (tracks.value.length > 1) next()
+    url = await resolveUrl(track.id)
+  } catch (e) {
+    url = ''
+  }
+  // 等待取流期间用户又切了歌，这次结果作废
+  if (token !== playToken) return
+  resolving.value = false
+
+  if (!url) {
+    // 这首歌拿不到地址（版权/限流/网络异常），跳过；连续失败过多则停下
+    loadedUrl = ''
+    consecutiveErr++
+    if (consecutiveErr > 3) {
+      playing.value = false
+      errorText.value = '播放失败较多，请点刷新重试'
       return
     }
-    el.src = url
-    el.load()
+    if (tracks.value.length > 1) go(1, { autoplay: true, keepErr: true })
+    else errorText.value = '这首歌暂时无法播放'
+    return
+  }
+
+  loadedUrl = url
+  // 先 pause 再换源：直接改 src 会让浏览器对旧资源抛中断错误
+  el.pause()
+  el.src = url
+  el.load()
+  try {
     await el.play()
   } catch (e) {
-    // 失败交给 onError / 这里的兜底处理
-    if (!el.getAttribute('src') && tracks.value.length > 1) next()
-  } finally {
-    resolving.value = false
+    /* 换源/暂停引起的中断不算失败，真正的加载失败由 onError 处理 */
   }
+  // 如果这期间用户又切了歌，playToken 已变，说明上面加载的已是过期曲目：交给最新那次 play 接管
 }
 
 function toggle() {
@@ -224,25 +261,52 @@ function toggle() {
   if (!el) return
   if (playing.value) {
     el.pause()
-  } else if (el.getAttribute('src')) {
+  } else if (loadedUrl && el.getAttribute('src') === loadedUrl) {
+    // 音源与当前曲目一致，直接续播
     el.play().catch(() => {})
   } else {
+    // 没有音源、或暂停期间切过歌，必须重新取流，否则会放回上一首
     play()
   }
 }
 
-function go(step) {
+/**
+ * 切歌。
+ * autoplay 默认跟随当前播放状态：播放中点下一首继续播，暂停中点下一首只换 UI。
+ * 注意换源动作不能依赖 playing —— 自然播完时浏览器先发 pause（playing 已变 false），
+ * 再发 ended，若此时用 playing 判断就会「只换 UI 不换源」，表现为一直重复放上一首。
+ */
+function go(step, { autoplay = playing.value, keepErr = false } = {}) {
   if (!tracks.value.length) return
   index.value = (index.value + step + tracks.value.length) % tracks.value.length
   cur.value = 0
   dur.value = 0
   coverFailed.value = false
-  consecutiveErr = 0
-  if (playing.value) play()
+  if (!keepErr) consecutiveErr = 0
+
+  if (autoplay) {
+    play()
+  } else {
+    // 暂停状态下切歌：清掉旧音源，避免下次点播放又放出上一首
+    playToken++
+    loadedUrl = ''
+    const el = audioEl.value
+    if (el) {
+      el.pause()
+      el.removeAttribute('src')
+      el.load()
+    }
+    resolving.value = false
+  }
 }
 
 const next = () => go(1)
 const prev = () => go(-1)
+
+/** 自然播完必须显式自动播放下一首（此刻 playing 已被 pause 事件置为 false） */
+function onEnded() {
+  go(1, { autoplay: true })
+}
 
 function toggleMute() {
   muted.value = !muted.value
@@ -267,14 +331,16 @@ function seek(e) {
 }
 
 /* 出错处理：连续多次失败就停下并提示，避免无限跳过把接口刷到限流 */
-let consecutiveErr = 0
-
 function onPlaying() {
   consecutiveErr = 0
 }
 
 function onError() {
   if (!tracks.value.length) return
+  const el = audioEl.value
+  // 换源过程中旧资源被中断也会触发 error，那不算播放失败
+  if (!loadedUrl || !el || el.getAttribute('src') !== loadedUrl) return
+
   consecutiveErr++
   if (consecutiveErr > 3) {
     playing.value = false
@@ -282,17 +348,21 @@ function onError() {
     return
   }
   setTimeout(() => {
-    if (playing.value) next()
+    if (playing.value) go(1, { autoplay: true, keepErr: true })
   }, 400)
 }
 
 onMounted(() => loadTracks())
 
 onBeforeUnmount(() => {
+  playToken++
+  listToken++
+  loadedUrl = ''
   const el = audioEl.value
   if (el) {
     el.pause()
     el.removeAttribute('src')
+    el.load()
   }
 })
 </script>
