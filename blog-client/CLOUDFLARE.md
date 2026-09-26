@@ -40,6 +40,11 @@ blog-client/
 
 ## 二、部署步骤
 
+> ⚠️ **请务必创建 Pages 项目**，不要创建 Workers 项目。
+> 两者入口不同：Workers 是 `Workers & Pages → Create → Workers`，
+> Pages 是 `Workers & Pages → Create → **Pages** → Connect to Git`。
+> 选错会在构建阶段报 `Error parsing file: vite.config.js`（详见第三节）。
+
 ### 1. 创建 Pages 项目
 
 1. 打开 https://dash.cloudflare.com/ → 左侧 **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
@@ -83,7 +88,47 @@ blog-client/
 
 ---
 
-## 三、部署后自检
+## 三、常见构建报错
+
+### `✘ [ERROR] Error parsing file: /opt/buildhome/repo/blog-client/vite.config.js`
+
+**原因**：你创建的是 **Workers** 项目（而不是 Pages），它的构建流程会用
+wrangler 的 autoconfig 去解析 `vite.config.js`，试图自动注入 Cloudflare Vite 插件。
+而这个解析器是 **esprima**，它**不支持 `import.meta`**。
+原来的 `vite.config.js` 里正好有这一行：
+
+```js
+'@': fileURLToPath(new URL('./src', import.meta.url))
+```
+
+注意报错路径里的 `/opt/buildhome/repo/blog-client/`——说明 **Root directory 已经填对了**，
+跟路径没关系，纯粹是语法解析问题。
+
+**已修复**（提交 `6ff5d8e` 之后）：改用根目录相对路径，不再出现 `import.meta`：
+
+```js
+resolve: {
+  alias: {
+    '@': '/src'   // Vite 按项目根目录解析，等价于原来的 fileURLToPath(...)
+  }
+}
+```
+
+> 附带说明：项目 `src/` 里其实**一处都没用过** `@/` 别名（全部是相对路径 `../`），
+> 所以这个改动对现有代码零影响。
+
+**验证方法**（本地就能提前发现这类问题）：
+
+```bash
+cd blog-client
+node -e "const a=require('acorn'),f=require('fs');
+try{a.parse(f.readFileSync('vite.config.js','utf8'),{ecmaVersion:2017,sourceType:'module'});console.log('OK')}
+catch(e){console.log('FAIL: '+e.message)}"
+```
+
+---
+
+## 四、部署后自检
 
 | 检查项 | 预期 |
 |---|---|
@@ -99,7 +144,7 @@ blog-client/
 
 ---
 
-## 四、其他注意事项
+## 五、其他注意事项
 
 1. **游戏页面不会被 HTML 规范化影响**
    `/games/strikers-1945.html` 是带扩展名的实际文件，会原样返回（Pages 的
