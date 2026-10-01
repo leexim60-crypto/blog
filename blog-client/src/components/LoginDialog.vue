@@ -1,7 +1,14 @@
 <template>
   <Teleport to="body">
     <Transition name="portal">
-      <div v-if="userStore.showLogin" class="login-portal" @click.self="close">
+      <div
+        v-if="userStore.showLogin"
+        class="login-portal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="登录或注册"
+        @click.self="close"
+      >
         <!-- 星门卡片 -->
         <div class="star-gate" :class="mode">
           <!-- 卡片内漂浮的星星 -->
@@ -39,6 +46,7 @@
                 <el-icon><User /></el-icon> {{ mode === 'login' ? '代号' : '你的专属代号' }}
               </label>
               <input
+                ref="firstInputRef"
                 v-model.trim="form.username"
                 class="field-input"
                 type="text"
@@ -110,7 +118,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { reactive, ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Postcard, Plus, Close } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/user'
@@ -119,6 +127,7 @@ const userStore = useUserStore()
 const mode = ref('login')
 const loading = ref(false)
 const showPwd = ref(false)
+const firstInputRef = ref(null)
 const form = reactive({ username: '', password: '', nickname: '' })
 
 /* ---------- 趣味文案 ---------- */
@@ -199,8 +208,13 @@ function resetForm() {
 }
 
 watch(() => userStore.showLogin, v => {
-  if (v) rollTagline()
-  else resetForm()
+  if (v) {
+    rollTagline()
+    // 打开后把焦点交给第一个输入框，键盘用户不必手动 Tab
+    nextTick(() => firstInputRef.value?.focus())
+  } else {
+    resetForm()
+  }
 })
 
 function onKeydown(e) {
@@ -252,6 +266,8 @@ async function submit() {
   padding: 20px;
   background: rgba(2, 6, 16, 0.72);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overscroll-behavior: contain;
 }
 .portal-enter-active,
 .portal-leave-active { transition: opacity 0.3s ease; }
@@ -274,6 +290,7 @@ async function submit() {
   overflow-y: auto;
   padding: 36px 32px 28px;
   border-radius: 24px;
+  font-family: var(--font-sans);
   background: linear-gradient(160deg, #0b1e3a 0%, #0a1428 55%, #0d1030 100%);
   border: 1px solid rgba(120, 160, 255, 0.25);
   box-shadow:

@@ -17,6 +17,31 @@ export default defineConfig({
       '@': '/src'
     }
   },
+  build: {
+    // 拆包策略：让「框架 / 组件库 / 高亮器」各自独立
+    //  - 业务代码改动时，用户不必重新下载这几百 KB 的 vendor
+    //  - markdown（marked + highlight.js + DOMPurify）本来就只在详情页
+    //    动态引入，单独成 chunk 后能被长期缓存
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('highlight.js') || id.includes('marked') || id.includes('dompurify')) {
+            return 'markdown'
+          }
+          if (id.includes('element-plus') || id.includes('@element-plus')) {
+            return 'element-plus'
+          }
+          if (id.includes('/vue/') || id.includes('vue-router') || id.includes('pinia') || id.includes('@vue')) {
+            return 'vue-vendor'
+          }
+          return 'vendor'
+        }
+      }
+    },
+    // 单 chunk 超过 500KB 才提示，避免上面拆包后仍刷警告
+    chunkSizeWarningLimit: 700
+  },
   server: {
     port: 5173,
     proxy: {

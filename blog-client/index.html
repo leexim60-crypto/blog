@@ -1,14 +1,60 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="陈Hello的博客 · 星空下的个人主页、项目导航与心情日记" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
   <title>陈Hello的博客 · 星空日记</title>
+  <meta name="description" content="陈Hello的数字小宇宙 —— 部署上线的项目、每日心情日记，以及一片会呼吸的星空。" />
+  <meta name="author" content="陈Hello" />
+  <meta name="theme-color" content="#04060d" />
+  <meta name="color-scheme" content="dark" />
+
+  <!-- Open Graph / 社交分享 -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="陈Hello的博客 · 星空日记" />
+  <meta property="og:description" content="部署上线的项目、每日心情日记，以及一片会呼吸的星空。" />
+  <meta property="og:locale" content="zh_CN" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+
+  <!-- 字体：拉丁文用 Inter Tight / 数字与引文用 Instrument Serif / 标签用 JetBrains Mono，
+       中文回落到系统黑体，避免拉取数 MB 的中文字体子集 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="preload"
+    as="style"
+    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:ital,wght@0,300..900;1,300..900&family=JetBrains+Mono:wght@300..600&display=swap"
+  />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:ital,wght@0,300..900;1,300..900&family=JetBrains+Mono:wght@300..600&display=swap"
+  />
+
+  <!-- 首屏底色，避免字体/JS 加载前出现白闪 -->
+  <style>
+    html { background: #04060d; }
+    body { margin: 0; background: #04060d; color: #f2f5fb; }
+    #app:empty::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(60% 50% at 50% 40%, rgba(110, 168, 255, 0.10), transparent 70%),
+        #04060d;
+    }
+  </style>
 </head>
 <body>
   <div id="app"></div>
+  <noscript>
+    <div style="padding:48px;text-align:center;font-family:sans-serif;color:#f2f5fb">
+      本站需要开启 JavaScript 才能浏览 ✨
+    </div>
+  </noscript>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

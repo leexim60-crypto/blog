@@ -1,20 +1,49 @@
 <template>
-  <!-- 桌面端：右侧固定悬浮挂件栏（可折叠） -->
-  <aside class="widget-rail" :class="{ 'is-open': open }" aria-label="页面小组件">
+  <!-- 页面小组件栏：
+       窄屏（<768）→ 右下角悬浮按钮 + 底部抽屉
+       中屏（768–1831）→ 右侧抽屉式浮层（带遮罩，点击遮罩关闭）
+       超宽（≥1832）→ 停靠在右侧留白里，默认展开、不遮挡内容 -->
+  <div v-if="isOverlay && open" class="widget-scrim" @click="toggle" aria-hidden="true"></div>
+
+  <aside
+    class="widget-rail"
+    :class="{ 'is-open': open, 'is-docked': isDocked, 'is-overlay': isOverlay }"
+    aria-label="页面小组件"
+  >
     <!-- 收起状态的竖排拉手 -->
-    <button v-if="!open" class="widget-handle" title="展开小组件" @click="toggle">
+    <button
+      v-if="!open"
+      class="widget-handle"
+      type="button"
+      aria-label="展开页面小组件"
+      :aria-expanded="open"
+      @click="toggle"
+    >
       <el-icon><MagicStick /></el-icon>
       <span class="widget-handle-text">小挂件</span>
     </button>
 
-    <div v-else class="widget-panel">
+    <div v-else class="widget-panel" role="region" aria-label="页面小组件面板">
       <div class="widget-panel-head">
         <span><el-icon><MagicStick /></el-icon> 页面小挂件</span>
         <div class="flex items-center gap-1">
-          <button class="widget-mini-btn" title="组件设置" @click="showSettings = !showSettings">
+          <button
+            class="widget-mini-btn"
+            type="button"
+            title="组件设置"
+            aria-label="组件设置"
+            :aria-pressed="showSettings"
+            @click="showSettings = !showSettings"
+          >
             <el-icon><Setting /></el-icon>
           </button>
-          <button class="widget-mini-btn" title="收起" @click="toggle">
+          <button
+            class="widget-mini-btn"
+            type="button"
+            title="收起"
+            aria-label="收起小组件面板"
+            @click="toggle"
+          >
             <el-icon><Fold /></el-icon>
           </button>
         </div>
@@ -32,16 +61,16 @@
         </div>
       </transition>
 
-      <div class="widget-list">
-        <component v-for="w in visibleWidgets" :key="w.key" :is="w.comp" />
-        <p v-if="!visibleWidgets.length" class="widget-empty">还没有开启任何挂件，点右上角齿轮勾选 ✨</p>
+        <div class="widget-list">
+          <component v-for="w in visibleWidgets" :key="w.key" :is="w.comp" />
+          <p v-if="!visibleWidgets.length" class="widget-empty">还没有开启任何挂件，点右上角齿轮勾选 ✨</p>
+        </div>
       </div>
-    </div>
-  </aside>
+    </aside>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 
 const WidgetClock = defineAsyncComponent(() => import('./WidgetClock.vue'))
@@ -70,12 +99,30 @@ const allWidgets = [
 const DEFAULT_ENABLED = ['clock', 'weather', 'stats', 'countdown', 'quote', 'music', 'wallpaper', 'calendar']
 
 const route = useRoute()
-// 宽屏默认展开（一屏放得下），窄屏默认收起成悬浮按钮，避免遮住内容
-const open = ref(typeof window !== 'undefined' ? window.innerWidth > 1180 : true)
+
+/* 视口分档（与下方 CSS 断点保持一致）：
+   - ≥1832px：右侧留白放得下 320px 面板（容器宽 1152 居中，
+     需 VW/2 ≥ 1152/2 + 20 间隙 + 320 → VW ≥ 1832），停靠展开
+   - 768–1831px：以浮层形式展开（带遮罩），默认收起
+   - <768px：底部抽屉 */
+const DOCK_MIN = 1832
+const SHEET_MAX = 767
+
+const vw = ref(typeof window !== 'undefined' ? window.innerWidth : 0)
+const isDocked = computed(() => vw.value >= DOCK_MIN)
+const isOverlay = computed(() => vw.value > SHEET_MAX && vw.value < DOCK_MIN)
+
+// 初始状态先按「窄屏收起」，再由 load() 根据本机记忆与视口修正，
+// 避免 SSR / 首帧闪烁
+const open = ref(false)
 const showSettings = ref(false)
 const enabled = ref([...DEFAULT_ENABLED])
 
 const visibleWidgets = computed(() => allWidgets.filter((w) => enabled.value.includes(w.key)))
+
+/* 用户是否亲手开合过面板。一旦手动操作过，就完全尊重用户的选择，
+   不再因为「换个视口档位」自动展开/收起，否则会在拖窗口时反复弹跳。 */
+const userToggled = ref(false)
 
 function load() {
   try {
@@ -83,11 +130,16 @@ function load() {
     if (raw) {
       const obj = JSON.parse(raw)
       if (Array.isArray(obj.enabled)) enabled.value = obj.enabled
-      if (typeof obj.open === 'boolean') open.value = obj.open
+      if (typeof obj.open === 'boolean') {
+        open.value = obj.open
+        userToggled.value = true
+      }
     }
   } catch (e) {
-    /* ignore */
+    /* 隐私模式下 localStorage 不可用，用默认值即可 */
   }
+  // 没存过偏好时，只有停靠档才默认展开
+  if (!userToggled.value) open.value = isDocked.value
 }
 
 function save() {
@@ -99,6 +151,7 @@ function save() {
 }
 
 function toggle() {
+  userToggled.value = true
   open.value = !open.value
 }
 
@@ -110,24 +163,94 @@ function toggleWidget(key) {
 
 watch([enabled, open], save, { deep: true })
 
+// 停靠态给 <html> 加标记：style.css 里据此给 body 预留右侧宽度
+watch(
+  isDocked,
+  (docked) => {
+    document.documentElement.classList.toggle('rail-docked', docked)
+  },
+  { immediate: true }
+)
+
+// 停靠态下才默认展开；用户手动收起后就保持收起
+watch(isDocked, (docked) => {
+  if (!userToggled.value) open.value = docked
+})
+
 onMounted(() => {
   load()
   // 日记详情/编辑页专注阅读写作，自动收起挂件
   if (route.path.startsWith('/diary/') && route.path !== '/diary') open.value = false
+  window.addEventListener('resize', onResize, { passive: true })
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+  document.documentElement.classList.remove('rail-docked')
+})
+
+// 视口变到「放不下面板」的档位时收起，避免内容被遮挡；
+// 反过来变大不会自动弹开，把主动权留给用户
+function onResize() {
+  vw.value = window.innerWidth
+  if (!isDocked.value && open.value) open.value = false
+}
 </script>
 
 <style scoped>
-/* 桌面端悬浮在右侧，移动端整条栏隐藏（避免遮挡内容） */
+/* ============================ 遮罩（浮层形态） ============================ */
+/* z-index 高于顶栏（--z-header: 50），否则顶栏会浮在遮罩之上，
+   既不被压暗、也仍然可点，看起来像遮罩没生效 */
+.widget-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(3, 6, 14, 0.62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: scrim-in var(--dur-3) var(--ease-out-quart);
+}
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ============================ 停靠态：占位 ============================ */
+/* 停靠时给 body 右侧留出面板宽度，避免内容被盖住。
+   用 :global 因为要作用到 <html>/<body> 上 */
+:global(html.rail-docked) body {
+  padding-right: 320px;
+}
+
+/* 顶栏是 fixed 定位，不会跟随 body 的 padding，
+   需要单独让出右侧宽度，否则内容会与面板左对齐而顶栏仍居中 */
+:global(html.rail-docked) .site-header {
+  right: 320px;
+}
+
 .widget-rail {
   position: fixed;
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 40;
+  z-index: var(--z-rail);
   display: flex;
   align-items: center;
   max-height: 88vh;
+}
+
+/* 浮层形态：抬到顶栏之上，面板与遮罩同层 */
+.widget-rail.is-overlay {
+  z-index: 61;
+}
+
+/* 停靠态：贴着视口右侧，占满高度 */
+.widget-rail.is-docked {
+  top: 0;
+  bottom: 0;
+  transform: none;
+  max-height: none;
+  align-items: stretch;
 }
 
 /* 收起拉手 */
@@ -137,16 +260,19 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 14px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--hairline);
   border-right: none;
-  border-radius: 14px 0 0 14px;
-  background: rgba(6, 18, 36, 0.75);
+  border-radius: var(--r-s) 0 0 var(--r-s);
+  background: rgba(6, 18, 36, 0.78);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-dim);
   cursor: pointer;
   box-shadow: -6px 0 24px rgba(2, 8, 20, 0.5);
-  transition: all 0.28s;
+  transition:
+    color var(--dur-2) var(--ease-out-quart),
+    background-color var(--dur-2) var(--ease-out-quart),
+    padding-right var(--dur-3) var(--ease-out-expo);
 }
 .widget-handle:hover {
   color: #fff;
@@ -165,13 +291,13 @@ onMounted(() => {
   max-height: 88vh;
   overflow-y: auto;
   padding: 16px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--hairline);
   background: linear-gradient(180deg, rgba(8, 22, 42, 0.92), rgba(4, 12, 26, 0.94));
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: -18px 0 50px rgba(2, 8, 20, 0.6);
-  border-radius: 16px 0 0 16px;
-  animation: widget-in 0.3s ease;
+  border-radius: var(--r-m) 0 0 var(--r-m);
+  animation: widget-in 0.3s var(--ease-out-expo);
 }
 @keyframes widget-in {
   from { opacity: 0; transform: translateX(16px); }
@@ -264,8 +390,22 @@ onMounted(() => {
   transform: translateY(-6px);
 }
 
+/* ================= 浮层 / 抽屉形态（<1832px） ================= */
+/* 右侧滑入的浮层面板：与停靠态区分开，靠遮罩避免误触 */
+@media (max-width: 1831px) {
+  .widget-panel {
+    position: fixed;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    max-height: 86vh;
+    border-radius: var(--r-m) 0 0 var(--r-m);
+    animation: widget-in 0.3s var(--ease-out-expo);
+  }
+}
+
 /* 移动端 / 窄屏：改成右下角悬浮按钮 + 底部抽屉，功能不缺失 */
-@media (max-width: 1180px) {
+@media (max-width: 767px) {
   .widget-rail {
     top: auto;
     bottom: 0;
@@ -280,11 +420,11 @@ onMounted(() => {
     pointer-events: auto;
     position: fixed;
     right: 14px;
-    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
     flex-direction: row;
     padding: 12px 16px;
-    border-radius: 999px;
-    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--r-full);
+    border-right: 1px solid var(--hairline);
     box-shadow: 0 8px 28px rgba(2, 8, 20, 0.6);
   }
 
@@ -302,15 +442,27 @@ onMounted(() => {
     bottom: 0;
     width: 100%;
     max-height: 72vh;
-    border-radius: 20px 20px 0 0;
+    border-radius: var(--r-l) var(--r-l) 0 0;
     border-left: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    animation: widget-up 0.3s ease;
+    border-top: 1px solid var(--hairline);
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    animation: widget-up 0.3s var(--ease-out-expo);
   }
 
   @keyframes widget-up {
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
   }
+}
+/* 停靠态面板：不再需要负向外阴影，改为内部分隔线 */
+.widget-rail.is-docked .widget-panel {
+  border-radius: 0;
+  border-left: 1px solid var(--hairline);
+  box-shadow: none;
+  height: 100%;
+  max-height: 100%;
+  padding-top: calc(var(--header-h) + var(--space-s));
+  padding-bottom: var(--space-s);
+  animation: none;
 }
 </style>

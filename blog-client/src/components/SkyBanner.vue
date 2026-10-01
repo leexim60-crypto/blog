@@ -1,39 +1,78 @@
 <template>
   <section
-    class="banner-bg relative w-full h-[100svh] min-h-[540px] overflow-hidden text-white"
+    ref="heroRef"
+    class="hero"
     :style="bannerStyle"
+    aria-labelledby="hero-title"
   >
-    <canvas ref="skyCanvas" class="sky-canvas" aria-hidden="true"></canvas>
-    <div class="sky-overlay" aria-hidden="true"></div>
+    <!-- 星空画布（动画层） -->
+    <canvas ref="skyCanvas" class="hero__canvas" aria-hidden="true"></canvas>
 
-    <div class="banner-content relative z-10 w-full h-full flex items-center justify-center flex-col text-center px-5">
-      <div
-        class="w-24 h-24 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center mb-7 text-white shadow-lg"
-      >
-        <span class="text-4xl font-bold">陈</span>
-      </div>
+    <!-- 叠色层：压暗边缘，把视觉重心收回内容区 -->
+    <div class="hero__veil" aria-hidden="true"></div>
+    <!-- 胶片颗粒：消除大面积渐变的「塑料感」 -->
+    <div class="hero__grain" aria-hidden="true"></div>
+    <!-- 底部渐隐，让星空与下方内容无缝衔接 -->
+    <div class="hero__seam" aria-hidden="true"></div>
 
-      <h1 class="gradient-title font-extrabold text-4xl sm:text-5xl md:text-6xl mb-4">
-        陈Hello的博客
-      </h1>
-
-      <p class="gradient-desc text-base sm:text-lg md:text-xl mb-10 max-w-xl leading-relaxed">
-        欢迎来到我的数字小宇宙，这里收录了我部署上线的项目
+    <div class="hero__inner shell" :style="parallaxStyle">
+      <p class="hero__eyebrow eyebrow">
+        Personal Observatory
+        <span class="hero__live" aria-hidden="true"><i></i>LIVE</span>
       </p>
 
-      <button
-        class="homepage-link outline-none flex justify-center items-center gap-2 px-9 h-12 text-base rounded-full border border-white/60 text-white"
-        @click="$emit('openProjects')"
-      >
-        <el-icon :size="18"><Grid /></el-icon>
-        查看我的项目
-      </button>
+      <h1 id="hero-title" class="hero__title">
+        <!-- 渐变必须画在「每个字自己」身上。
+             如果渐变留在父元素、动画加在子 span 上，子 span 的 opacity/transform
+             会创建合成层，父元素的 background-clip:text 无法穿透该层绘制，
+             结果就是整个标题彻底看不见。 -->
+        <span
+          ref="titleLineRef"
+          class="hero__title-line"
+          aria-hidden="true"
+          :style="{ '--line-w': lineWidth }"
+        >
+          <span
+            v-for="(ch, i) in titleChars"
+            :key="i"
+            class="char-in gradient-chars"
+            :style="{ '--i': i, '--x': charOffsets[i] || '0px' }"
+          >{{ ch }}</span>
+        </span>
+        <span class="sr-only">{{ title }}</span>
+      </h1>
+
+      <p class="hero__desc">
+        欢迎来到我的数字小宇宙。这里收录我部署上线的作品，
+        也收留每一个不想被忘记的日子。
+      </p>
+
+      <div class="hero__actions">
+        <button class="hero__cta btn-aurora" type="button" @click="$emit('openProjects')">
+          <el-icon><Grid /></el-icon>
+          查看我的项目
+        </button>
+        <router-link to="/diary" class="hero__cta hero__cta--ghost">
+          <el-icon><Notebook /></el-icon>
+          翻阅日记
+        </router-link>
+      </div>
+
+      <!-- 一行随时刻变化的「现场读数」，让首屏是活的 -->
+      <p class="hero__now">
+        <span class="hero__now-dot" aria-hidden="true"></span>
+        <span>{{ greeting }}</span>
+        <span class="hero__now-sep" aria-hidden="true">/</span>
+        <span class="num">{{ dateText }}</span>
+        <span class="hero__now-sep" aria-hidden="true">/</span>
+        <span class="num">{{ clockText }}</span>
+      </p>
     </div>
 
-    <div class="scroll-hint absolute bottom-7 left-1/2 -translate-x-1/2 z-10 text-white/50 flex flex-col items-center gap-1.5">
-      <span class="text-xs tracking-widest">SCROLL</span>
-      <el-icon :size="18" class="animate-bounce"><ArrowDownBold /></el-icon>
-    </div>
+    <button class="hero__scroll" type="button" aria-label="向下滚动" @click="scrollDown">
+      <span class="hero__scroll-label">Scroll</span>
+      <span class="hero__scroll-line" aria-hidden="true"><i></i></span>
+    </button>
   </section>
 </template>
 
@@ -42,8 +81,124 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
 defineEmits(['openProjects'])
 
+const heroRef = ref(null)
 const skyCanvas = ref(null)
+
+const title = '陈Hello的博客'
+const titleChars = computed(() => Array.from(title))
+
+/* 逐字渐变的连续性：
+   每个字都要画同一道渐变，且各自只显示属于自己的那一段。
+   做法是量出整行宽度与每个字的左偏移，写进 --line-w / --x，
+   再配合 background-size / background-position 把渐变「对齐」到整行上。 */
+const titleLineRef = ref(null)
+const charOffsets = ref([])
+const lineWidth = ref('100%')
+
+async function measureTitle() {
+  const line = titleLineRef.value
+  if (!line) return
+  const spans = Array.from(line.querySelectorAll('.char-in'))
+  if (!spans.length) return
+  const lineRect = line.getBoundingClientRect()
+  lineWidth.value = `${lineRect.width}px`
+  charOffsets.value = spans.map((s) => `${s.offsetLeft}px`)
+}
+
+/* ------------------------------------------------------------------
+ * 自定义横幅壁纸：由「每日一图」小组件写入 localStorage
+ * ------------------------------------------------------------------ */
+const BANNER_KEY = 'blog_banner_wallpaper'
+const bannerWallpaper = ref('')
+
+const bannerStyle = computed(() =>
+  bannerWallpaper.value
+    ? {
+        backgroundImage: `linear-gradient(180deg, rgba(4,6,13,.34) 0%, rgba(4,6,13,.74) 60%, rgba(4,6,13,.96) 100%), url("${bannerWallpaper.value}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }
+    : {}
+)
+
+function syncBannerWallpaper() {
+  try {
+    bannerWallpaper.value = localStorage.getItem(BANNER_KEY) || ''
+  } catch {
+    bannerWallpaper.value = ''
+  }
+}
+
+/* ------------------------------------------------------------------
+ * 现场读数：问候语 / 日期 / 时间
+ * ------------------------------------------------------------------ */
+const now = ref(new Date())
+let clockTimer = null
+
+const greeting = computed(() => {
+  const h = now.value.getHours()
+  if (h < 5) return '夜深了，星星还在'
+  if (h < 9) return '早上好'
+  if (h < 12) return '上午好'
+  if (h < 14) return '中午好'
+  if (h < 18) return '下午好'
+  if (h < 22) return '晚上好'
+  return '夜色正好'
+})
+
+const dateText = computed(() => {
+  const d = now.value
+  const w = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${w}`
+})
+
+const clockText = computed(() => {
+  const d = now.value
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}`
+})
+
+/* ------------------------------------------------------------------
+ * 指针视差
+ * 只写 CSS 变量 / transform，交给合成层，避免每帧触发布局
+ * ------------------------------------------------------------------ */
+const parallaxStyle = ref({ transform: 'translate3d(0,0,0)' })
+const pointer = { x: 0, y: 0, tx: 0, ty: 0 }
+
+function onPointerMove(e) {
+  const el = heroRef.value
+  if (!el || reducedMotion) return
+  const rect = el.getBoundingClientRect()
+  pointer.tx = ((e.clientX - rect.left) / rect.width - 0.5) * 2
+  pointer.ty = ((e.clientY - rect.top) / rect.height - 0.5) * 2
+}
+
+function onPointerLeave() {
+  pointer.tx = 0
+  pointer.ty = 0
+}
+
+function scrollDown() {
+  const next = heroRef.value?.nextElementSibling
+  if (next) next.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' })
+  else window.scrollBy({ top: window.innerHeight * 0.9, behavior: 'smooth' })
+}
+
+/* ==================================================================
+ * Canvas 星空引擎
+ * ------------------------------------------------------------------
+ * 性能策略（决定首屏是否顺滑）：
+ *  1. 静态背景（渐变 / 星云 / 月亮）只渲染一次到离屏 canvas，
+ *     每帧 drawImage 贴回 —— 省掉每帧 5 次全屏渐变填充；
+ *  2. 亮星发光用预渲染贴图，替代 shadowBlur
+ *     （shadowBlur 是移动端最大的帧率杀手）；
+ *  3. 离开视口 / 页面不可见时暂停 rAF，不空转耗电；
+ *  4. 小屏降低 DPR 与星点数量。
+ * ================================================================== */
 let ctx = null
+let bgLayer = null
+let glowSprite = null
 let canvasWidth = 0
 let canvasHeight = 0
 let stars = []
@@ -54,35 +209,107 @@ let resizeId = null
 let lastTimestamp = 0
 let nextMeteorAt = 0
 let reducedMotion = false
-const moonX = 0.78
-const moonY = 0.15
-
-/* 自定义横幅壁纸：由「每日一图」小组件写入 localStorage，
-   这里读取后叠在星空画布之上；没有设置时保持默认纯星空。 */
-const BANNER_KEY = 'blog_banner_wallpaper'
-const bannerWallpaper = ref('')
-const bannerStyle = computed(() =>
-  bannerWallpaper.value
-    ? {
-        backgroundImage: `linear-gradient(180deg, rgba(3,8,18,.25) 0%, rgba(3,8,18,.72) 100%), url("${bannerWallpaper.value}")`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      }
-    : {}
-)
-
-function syncBannerWallpaper() {
-  try {
-    bannerWallpaper.value = localStorage.getItem(BANNER_KEY) || ''
-  } catch (e) {
-    bannerWallpaper.value = ''
-  }
-}
+let isVisible = true
+const MOON_X = 0.78
+const MOON_Y = 0.15
 
 const easeSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2
 const smoothStep = (e0, e1, x) => {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)))
   return t * t * (3 - 2 * t)
+}
+
+/* 预渲染一张发光贴图，供所有亮星复用 */
+function makeGlowSprite(size = 64) {
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const cc = c.getContext('2d')
+  const half = size / 2
+  const grad = cc.createRadialGradient(half, half, 0, half, half, half)
+  grad.addColorStop(0, 'rgba(255,255,255,1)')
+  grad.addColorStop(0.28, 'rgba(214,232,255,0.42)')
+  grad.addColorStop(0.6, 'rgba(150,190,255,0.12)')
+  grad.addColorStop(1, 'rgba(120,170,255,0)')
+  cc.fillStyle = grad
+  cc.fillRect(0, 0, size, size)
+  return c
+}
+
+/* 静态背景：只在 resize 时重建一次 */
+function buildBackdrop() {
+  const w = canvasWidth
+  const h = canvasHeight
+  bgLayer = document.createElement('canvas')
+  bgLayer.width = Math.max(1, Math.floor(w))
+  bgLayer.height = Math.max(1, Math.floor(h))
+  const g = bgLayer.getContext('2d')
+  if (!g) return
+
+  const gradient = g.createLinearGradient(0, 0, 0, h)
+  gradient.addColorStop(0, '#03060e')
+  gradient.addColorStop(0.3, '#040b18')
+  gradient.addColorStop(0.62, '#061125')
+  gradient.addColorStop(0.86, '#08162c')
+  gradient.addColorStop(1, '#04060d')
+  g.fillStyle = gradient
+  g.fillRect(0, 0, w, h)
+
+  const mx = w * MOON_X
+  const my = h * MOON_Y
+
+  // 月晕
+  const moonGlow = g.createRadialGradient(mx, my, 0, mx, my, Math.max(w, h) * 0.7)
+  moonGlow.addColorStop(0, 'rgba(160, 195, 255, 0.17)')
+  moonGlow.addColorStop(0.15, 'rgba(130, 175, 240, 0.11)')
+  moonGlow.addColorStop(0.4, 'rgba(80, 120, 200, 0.055)')
+  moonGlow.addColorStop(0.7, 'rgba(40, 70, 140, 0.022)')
+  moonGlow.addColorStop(1, 'rgba(4, 10, 28, 0)')
+  g.fillStyle = moonGlow
+  g.fillRect(0, 0, w, h)
+
+  // 三团极光星云：蓝 / 暖 / 青，构成色彩层次
+  const nebula = (cx, cy, radius, rgb, alpha) => {
+    const n = g.createRadialGradient(cx, cy, 0, cx, cy, radius)
+    n.addColorStop(0, `rgba(${rgb}, ${alpha})`)
+    n.addColorStop(0.5, `rgba(${rgb}, ${alpha * 0.4})`)
+    n.addColorStop(1, 'rgba(4, 10, 28, 0)')
+    g.fillStyle = n
+    g.fillRect(0, 0, w, h)
+  }
+  nebula(w * 0.2, h * 0.18, w * 0.42, '100, 130, 220', 0.03)
+  nebula(w * 0.5, h * 0.98, w * 0.62, '140, 120, 90', 0.015)
+  nebula(w * 0.34, h * 0.62, w * 0.52, '85, 187, 138', 0.011)
+
+  // 月亮本体
+  const moonSize = Math.min(w, h) * 0.026
+  const halo = g.createRadialGradient(mx, my, moonSize * 0.5, mx, my, moonSize * 12)
+  halo.addColorStop(0, 'rgba(200, 220, 255, 0.08)')
+  halo.addColorStop(0.3, 'rgba(160, 190, 240, 0.04)')
+  halo.addColorStop(0.6, 'rgba(120, 155, 220, 0.015)')
+  halo.addColorStop(1, 'rgba(60, 90, 160, 0)')
+  g.fillStyle = halo
+  g.fillRect(0, 0, w, h)
+
+  const body = g.createRadialGradient(mx - moonSize * 0.15, my - moonSize * 0.15, 0, mx, my, moonSize)
+  body.addColorStop(0, 'rgba(245, 248, 255, 0.92)')
+  body.addColorStop(0.5, 'rgba(225, 235, 250, 0.85)')
+  body.addColorStop(0.85, 'rgba(200, 218, 245, 0.7)')
+  body.addColorStop(1, 'rgba(180, 200, 235, 0.4)')
+  g.beginPath()
+  g.fillStyle = body
+  g.arc(mx, my, moonSize, 0, Math.PI * 2)
+  g.fill()
+
+  // 环形山
+  g.globalAlpha = 0.08
+  g.fillStyle = 'rgba(120, 140, 180, 1)'
+  g.beginPath()
+  g.arc(mx - moonSize * 0.2, my + moonSize * 0.1, moonSize * 0.25, 0, Math.PI * 2)
+  g.fill()
+  g.beginPath()
+  g.arc(mx + moonSize * 0.25, my - moonSize * 0.2, moonSize * 0.18, 0, Math.PI * 2)
+  g.fill()
+  g.globalAlpha = 1
 }
 
 function handleResize() {
@@ -100,18 +327,21 @@ function setupCanvas() {
   const rect = canvas.getBoundingClientRect()
   const width = Math.max(1, Math.round(rect.width))
   const height = Math.max(1, Math.round(rect.height))
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const isSmall = width < 768
+  // 上限 1.75：再高的 DPR 对星点视觉收益很小，但填充率成本翻倍
+  const dpr = Math.min(window.devicePixelRatio || 1, isSmall ? 1.5 : 1.75)
 
   canvasWidth = width
   canvasHeight = height
   canvas.width = Math.floor(width * dpr)
   canvas.height = Math.floor(height * dpr)
 
-  const context = canvas.getContext('2d')
+  const context = canvas.getContext('2d', { alpha: false })
   if (!context) return
   context.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx = context
 
+  buildBackdrop()
   createStars()
   createWindParticles()
   meteors = []
@@ -119,7 +349,11 @@ function setupCanvas() {
 
 function createStars() {
   const area = canvasWidth * canvasHeight
-  const count = Math.min(900, Math.max(300, Math.round(area / 2400)))
+  const isSmall = canvasWidth < 768
+  const density = isSmall ? 4200 : 2900
+  const max = isSmall ? 420 : 760
+  const count = Math.min(max, Math.max(180, Math.round(area / density)))
+
   const starColors = [
     { r: 229, g: 239, b: 255 },
     { r: 255, g: 244, b: 230 },
@@ -129,7 +363,7 @@ function createStars() {
   ]
 
   stars = Array.from({ length: count }, () => {
-    const bright = Math.random() > 0.88
+    const bright = Math.random() > 0.9
     const color = starColors[Math.floor(Math.random() * starColors.length)]
     const layer = bright ? 2 : Math.random() < 0.35 ? 0 : 1
     const layerScale = [0.5, 1.0, 1.6][layer]
@@ -144,6 +378,8 @@ function createStars() {
       twinkleOffset2: Math.random() * Math.PI * 2,
       driftX: (Math.random() - 0.5) * 0.004 * layerScale,
       driftY: (Math.random() - 0.5) * 0.006 * layerScale,
+      // 视差深度：越「近」的层跟随指针位移越大
+      depth: layerScale,
       color,
       bright
     }
@@ -151,7 +387,7 @@ function createStars() {
 }
 
 function createWindParticles() {
-  const count = Math.min(18, Math.max(8, Math.round(canvasWidth / 120)))
+  const count = Math.min(14, Math.max(6, Math.round(canvasWidth / 150)))
   windParticles = Array.from({ length: count }, () => ({
     x: Math.random() * canvasWidth,
     y: Math.random() * canvasHeight,
@@ -169,7 +405,7 @@ function createWindParticles() {
 }
 
 function scheduleNextMeteor(now) {
-  nextMeteorAt = now + 1300 + Math.random() * 1300
+  nextMeteorAt = now + 1500 + Math.random() * 1600
 }
 
 function spawnMeteor() {
@@ -182,102 +418,15 @@ function spawnMeteor() {
     length: 100 + Math.random() * 180,
     width: 0.8 + Math.random() * 1.2,
     life: 0,
-    ttl: 900 + Math.random() * 500,
-    sparks: []
+    ttl: 900 + Math.random() * 500
   })
 }
 
-function drawBackdrop(timestamp) {
-  const w = canvasWidth
-  const h = canvasHeight
-
-  const gradient = ctx.createLinearGradient(0, 0, 0, h)
-  gradient.addColorStop(0, '#020810')
-  gradient.addColorStop(0.3, '#04101e')
-  gradient.addColorStop(0.6, '#061428')
-  gradient.addColorStop(0.85, '#081830')
-  gradient.addColorStop(1, '#040e1c')
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, w, h)
-
-  const mx = w * moonX
-  const my = h * moonY
-  const moonGlow = ctx.createRadialGradient(mx, my, 0, mx, my, Math.max(w, h) * 0.7)
-  moonGlow.addColorStop(0, 'rgba(160, 195, 255, 0.18)')
-  moonGlow.addColorStop(0.15, 'rgba(130, 175, 240, 0.12)')
-  moonGlow.addColorStop(0.4, 'rgba(80, 120, 200, 0.06)')
-  moonGlow.addColorStop(0.7, 'rgba(40, 70, 140, 0.025)')
-  moonGlow.addColorStop(1, 'rgba(4, 10, 28, 0)')
-  ctx.fillStyle = moonGlow
-  ctx.fillRect(0, 0, w, h)
-
-  const breathe = Math.sin(timestamp * 0.00008) * 0.5 + 0.5
-  const breathe2 = Math.sin(timestamp * 0.00012 + 1.2) * 0.5 + 0.5
-
-  const n1Alpha = 0.025 + breathe * 0.015
-  const n1 = ctx.createRadialGradient(w * 0.22, h * 0.2, 0, w * 0.22, h * 0.2, w * 0.4)
-  n1.addColorStop(0, `rgba(100, 130, 220, ${n1Alpha.toFixed(4)})`)
-  n1.addColorStop(0.5, `rgba(60, 80, 160, ${(n1Alpha * 0.4).toFixed(4)})`)
-  n1.addColorStop(1, 'rgba(4, 10, 28, 0)')
-  ctx.fillStyle = n1
-  ctx.fillRect(0, 0, w, h)
-
-  const n2Alpha = 0.012 + breathe2 * 0.008
-  const n2 = ctx.createRadialGradient(w * 0.5, h * 0.95, 0, w * 0.5, h * 0.95, w * 0.6)
-  n2.addColorStop(0, `rgba(140, 120, 90, ${n2Alpha.toFixed(4)})`)
-  n2.addColorStop(0.4, `rgba(80, 70, 60, ${(n2Alpha * 0.4).toFixed(4)})`)
-  n2.addColorStop(1, 'rgba(4, 10, 28, 0)')
-  ctx.fillStyle = n2
-  ctx.fillRect(0, 0, w, h)
-
-  const n3Alpha = 0.008 + breathe * 0.006
-  const n3 = ctx.createRadialGradient(w * 0.35, h * 0.6, 0, w * 0.35, h * 0.6, w * 0.5)
-  n3.addColorStop(0, `rgba(85, 187, 138, ${n3Alpha.toFixed(4)})`)
-  n3.addColorStop(0.5, `rgba(60, 130, 100, ${(n3Alpha * 0.3).toFixed(4)})`)
-  n3.addColorStop(1, 'rgba(4, 10, 28, 0)')
-  ctx.fillStyle = n3
-  ctx.fillRect(0, 0, w, h)
-}
-
-function drawMoon(timestamp) {
-  const w = canvasWidth
-  const h = canvasHeight
-  const mx = w * moonX
-  const my = h * moonY
-  const moonSize = Math.min(w, h) * 0.028
-
-  const haloPulse = 0.9 + Math.sin(timestamp * 0.0001) * 0.1
-  const halo = ctx.createRadialGradient(mx, my, moonSize * 0.5, mx, my, moonSize * 12)
-  halo.addColorStop(0, `rgba(200, 220, 255, ${(0.08 * haloPulse).toFixed(4)})`)
-  halo.addColorStop(0.3, `rgba(160, 190, 240, ${(0.04 * haloPulse).toFixed(4)})`)
-  halo.addColorStop(0.6, `rgba(120, 155, 220, ${(0.015 * haloPulse).toFixed(4)})`)
-  halo.addColorStop(1, 'rgba(60, 90, 160, 0)')
-  ctx.fillStyle = halo
-  ctx.fillRect(0, 0, w, h)
-
-  const body = ctx.createRadialGradient(mx - moonSize * 0.15, my - moonSize * 0.15, 0, mx, my, moonSize)
-  body.addColorStop(0, 'rgba(245, 248, 255, 0.92)')
-  body.addColorStop(0.5, 'rgba(225, 235, 250, 0.85)')
-  body.addColorStop(0.85, 'rgba(200, 218, 245, 0.7)')
-  body.addColorStop(1, 'rgba(180, 200, 235, 0.4)')
-
-  ctx.beginPath()
-  ctx.fillStyle = body
-  ctx.arc(mx, my, moonSize, 0, Math.PI * 2)
-  ctx.fill()
-
-  ctx.globalAlpha = 0.08
-  ctx.fillStyle = 'rgba(120, 140, 180, 1)'
-  ctx.beginPath()
-  ctx.arc(mx - moonSize * 0.2, my + moonSize * 0.1, moonSize * 0.25, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.beginPath()
-  ctx.arc(mx + moonSize * 0.25, my - moonSize * 0.2, moonSize * 0.18, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.globalAlpha = 1.0
-}
-
 function drawStars(timestamp, deltaMs) {
+  // 指针视差：越亮的星位移越大，产生纵深
+  const offX = pointer.x * 9
+  const offY = pointer.y * 7
+
   for (const star of stars) {
     const t1 = Math.sin(timestamp * star.twinkleSpeed + star.twinkleOffset)
     const t2 = Math.sin(timestamp * star.twinkleSpeed2 + star.twinkleOffset2)
@@ -285,32 +434,42 @@ function drawStars(timestamp, deltaMs) {
     const alpha = Math.min(0.95, star.baseAlpha + twinkle * 0.3)
     const { r, g, b } = star.color
 
-    ctx.beginPath()
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+    const x = star.x + offX * star.depth
+    const y = star.y + offY * star.depth
 
     if (star.bright) {
-      ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.4)`
-      ctx.shadowBlur = 6
-    } else {
-      ctx.shadowBlur = 0
-    }
-    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2)
-    ctx.fill()
+      // 预渲染贴图代替 shadowBlur
+      const size = star.radius * 13
+      ctx.globalAlpha = alpha * 0.9
+      ctx.drawImage(glowSprite, x - size / 2, y - size / 2, size, size)
+      ctx.globalAlpha = 1
 
-    if (star.bright && alpha > 0.55) {
-      ctx.shadowBlur = 0
-      const spikeAlpha = (alpha - 0.55) * 1.2
-      const spikeLen = star.radius * 3.5
-      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${(spikeAlpha * 0.25).toFixed(3)})`
-      ctx.lineWidth = 0.4
+      // 十字星芒只在最亮时出现
+      if (alpha > 0.6) {
+        const spikeAlpha = (alpha - 0.6) * 1.1
+        const spikeLen = star.radius * 3.6
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${(spikeAlpha * 0.3).toFixed(3)})`
+        ctx.lineWidth = 0.4
+        ctx.beginPath()
+        ctx.moveTo(x - spikeLen, y)
+        ctx.lineTo(x + spikeLen, y)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(x, y - spikeLen)
+        ctx.lineTo(x, y + spikeLen)
+        ctx.stroke()
+      }
+
+      // 星芯
       ctx.beginPath()
-      ctx.moveTo(star.x - spikeLen, star.y)
-      ctx.lineTo(star.x + spikeLen, star.y)
-      ctx.stroke()
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, alpha * 1.05).toFixed(3)})`
+      ctx.arc(x, y, star.radius * 0.6, 0, Math.PI * 2)
+      ctx.fill()
+    } else {
       ctx.beginPath()
-      ctx.moveTo(star.x, star.y - spikeLen)
-      ctx.lineTo(star.x, star.y + spikeLen)
-      ctx.stroke()
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+      ctx.arc(x, y, star.radius, 0, Math.PI * 2)
+      ctx.fill()
     }
 
     star.x += star.driftX * deltaMs
@@ -320,7 +479,6 @@ function drawStars(timestamp, deltaMs) {
     if (star.y < -4) star.y = canvasHeight + 4
     if (star.y > canvasHeight + 4) star.y = -4
   }
-  ctx.shadowBlur = 0
 }
 
 function drawWindParticles(timestamp, deltaMs) {
@@ -395,8 +553,9 @@ function drawMeteors(deltaMs) {
     const tailX = headX - Math.cos(meteor.angle) * meteor.length
     const tailY = headY - Math.sin(meteor.angle) * meteor.length
 
+    // 外层柔光
     ctx.save()
-    ctx.globalAlpha = opacity * 0.3
+    ctx.globalAlpha = opacity * 0.28
     ctx.shadowColor = 'rgba(180, 210, 255, 0.8)'
     ctx.shadowBlur = 12
     ctx.lineWidth = meteor.width * 3
@@ -445,8 +604,15 @@ function renderFrame(timestamp) {
   const deltaMs = lastTimestamp ? Math.min(50, timestamp - lastTimestamp) : 16
   lastTimestamp = timestamp
 
-  drawBackdrop(timestamp)
-  drawMoon(timestamp)
+  // 指针缓动：让视差跟手但不生硬
+  pointer.x += (pointer.tx - pointer.x) * 0.045
+  pointer.y += (pointer.ty - pointer.y) * 0.045
+  parallaxStyle.value = {
+    transform: `translate3d(${(-pointer.x * 7).toFixed(2)}px, ${(-pointer.y * 5).toFixed(2)}px, 0)`
+  }
+
+  // 静态背景一次贴回
+  if (bgLayer) ctx.drawImage(bgLayer, 0, 0, canvasWidth, canvasHeight)
   drawStars(timestamp, deltaMs)
 
   if (!reducedMotion) {
@@ -461,95 +627,351 @@ function renderFrame(timestamp) {
   animationId = requestAnimationFrame(renderFrame)
 }
 
+function startLoop() {
+  if (animationId === null) {
+    lastTimestamp = 0
+    animationId = requestAnimationFrame(renderFrame)
+  }
+}
+
+function stopLoop() {
+  if (animationId !== null) {
+    cancelAnimationFrame(animationId)
+    animationId = null
+  }
+}
+
+let visibilityObserver = null
+
+function onVisibilityChange() {
+  if (document.hidden) stopLoop()
+  else if (isVisible) startLoop()
+}
+
 onMounted(() => {
   reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   syncBannerWallpaper()
   window.addEventListener('banner-wallpaper-change', syncBannerWallpaper)
   window.addEventListener('storage', syncBannerWallpaper)
+  window.addEventListener('resize', handleResize, { passive: true })
+  document.addEventListener('visibilitychange', onVisibilityChange)
+
+  glowSprite = makeGlowSprite(64)
   setupCanvas()
   scheduleNextMeteor(performance.now())
-  animationId = requestAnimationFrame(renderFrame)
-  window.addEventListener('resize', handleResize, { passive: true })
+  startLoop()
+
+  now.value = new Date()
+  clockTimer = setInterval(() => (now.value = new Date()), 20_000)
+
+  // 字体加载完成后字宽会变，需要重新量一次，否则逐字渐变会错位
+  measureTitle()
+  document.fonts?.ready?.then(measureTitle).catch(() => {})
+  window.addEventListener('resize', measureTitle, { passive: true })
+
+  if (!reducedMotion) {
+    heroRef.value?.addEventListener('pointermove', onPointerMove, { passive: true })
+    heroRef.value?.addEventListener('pointerleave', onPointerLeave, { passive: true })
+  }
+
+  // 首屏滚出视口后暂停动画：星空很美，但不值得一直烧 GPU
+  if ('IntersectionObserver' in window) {
+    visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting
+        if (isVisible && !document.hidden) startLoop()
+        else stopLoop()
+      },
+      { threshold: 0 }
+    )
+    visibilityObserver.observe(heroRef.value)
+  }
 })
 
 onBeforeUnmount(() => {
-  if (animationId !== null) cancelAnimationFrame(animationId)
+  stopLoop()
   if (resizeId !== null) cancelAnimationFrame(resizeId)
+  visibilityObserver?.disconnect()
+  clearInterval(clockTimer)
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('resize', measureTitle)
   window.removeEventListener('banner-wallpaper-change', syncBannerWallpaper)
   window.removeEventListener('storage', syncBannerWallpaper)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  heroRef.value?.removeEventListener('pointermove', onPointerMove)
+  heroRef.value?.removeEventListener('pointerleave', onPointerLeave)
 })
 </script>
 
 <style scoped>
-.banner-bg {
+.hero {
+  position: relative;
   isolation: isolate;
-  background: #030812;
+  display: flex;
+  align-items: center;
+  min-height: 100svh;
+  min-height: 100dvh;
+  padding: calc(var(--header-h) + var(--space-l)) 0 var(--space-2xl);
+  overflow: hidden;
+  background: #03060e;
 }
 
-.sky-canvas,
-.sky-overlay {
+.hero__canvas,
+.hero__veil,
+.hero__grain,
+.hero__seam {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-
-.sky-canvas {
+.hero__canvas {
   z-index: 0;
   width: 100%;
   height: 100%;
 }
-
-.sky-overlay {
+.hero__veil {
   z-index: 1;
   background:
-    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%),
-    linear-gradient(180deg, rgba(3, 8, 18, 0.08) 0%, rgba(3, 8, 18, 0.36) 100%);
+    radial-gradient(circle at 16% 14%, rgba(255, 255, 255, 0.07), transparent 46%),
+    linear-gradient(180deg, rgba(3, 6, 14, 0.08) 0%, rgba(3, 6, 14, 0.34) 100%);
+}
+.hero__grain {
+  z-index: 2;
+  opacity: 0.15;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+.hero__seam {
+  z-index: 3;
+  top: auto;
+  height: 22vh;
+  background: linear-gradient(180deg, transparent, var(--ink-900));
 }
 
-.gradient-title {
-  background: linear-gradient(110deg, #f7fbff 5%, #d6e6ff 42%, #f8fbff 78%, #d4e1fa 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-font-smoothing: antialiased;
-  text-shadow: 0 10px 28px rgba(12, 20, 46, 0.44);
+/* ---------------- 内容 ---------------- */
+.hero__inner {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  max-width: 46rem;
+  will-change: transform;
 }
 
-.gradient-desc {
-  background: linear-gradient(120deg, #edf5ff 0%, #cfddf7 55%, #e7eefc 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-font-smoothing: antialiased;
-  text-shadow: 0 6px 22px rgba(8, 15, 36, 0.36);
+.hero__eyebrow {
+  margin: 0 0 0.6rem;
+  animation: hero-fade 900ms var(--ease-out-expo) 80ms backwards;
+}
+.hero__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--r-full);
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  background: rgba(94, 234, 212, 0.1);
+  color: var(--aurora-c);
+  letter-spacing: 0.16em;
+}
+.hero__live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--aurora-c);
+  box-shadow: 0 0 8px var(--aurora-c);
+  animation: live-pulse 2.2s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.72); }
 }
 
-.homepage-link {
-  background: rgba(255, 255, 255, 0.18);
+.hero__title {
+  margin: 0;
+  font-size: var(--step-5);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+.hero__title-line {
+  display: block;
+  /* 逐字渐变对齐到整行宽度：
+     --line-w 由 measureTitle() 量出后内联写入（子元素自动继承） */
+  --line-w: 100%;
+  --title-grad: linear-gradient(108deg, #ffffff 0%, #dbe7ff 34%, #ffffff 62%, #cbd9f6 100%);
+  filter: drop-shadow(0 12px 34px rgba(6, 14, 34, 0.6));
+}
+
+.hero__desc {
+  max-width: 33ch;
+  margin: 1rem 0 0;
+  font-size: var(--step-1);
+  line-height: 1.7;
+  color: rgba(226, 236, 252, 0.74);
+  animation: hero-fade 900ms var(--ease-out-expo) 720ms backwards;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+  animation: hero-fade 900ms var(--ease-out-expo) 840ms backwards;
+}
+.hero__cta {
+  padding: 0.85rem 1.6rem;
+  font-size: var(--step-0);
+}
+.hero__cta--ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  border-radius: var(--r-full);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 12px 32px rgba(3, 9, 22, 0.28);
+  color: #fff;
+  font-weight: 560;
   transition:
-    transform 240ms ease,
-    background-color 240ms ease,
-    box-shadow 240ms ease;
+    background-color var(--dur-2) var(--ease-out-quart),
+    border-color var(--dur-2) var(--ease-out-quart),
+    transform var(--dur-2) var(--ease-spring);
+}
+.hero__cta--ghost:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.44);
+  transform: translateY(-2px);
+}
+.hero__cta--ghost:active {
+  transform: translateY(0) scale(0.985);
 }
 
-.homepage-link:hover {
+.hero__now {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 1.6rem 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  animation: hero-fade 900ms var(--ease-out-expo) 960ms backwards;
+}
+.hero__now-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aurora-a);
+  box-shadow: 0 0 10px var(--aurora-a);
+}
+.hero__now-sep {
+  opacity: 0.4;
+}
+
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------- 滚动提示 ---------------- */
+.hero__scroll {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--space-m) + env(safe-area-inset-bottom));
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  transform: translateX(-50%);
   cursor: pointer;
-  transform: translateY(-1px) scale(1.01);
-  background: rgba(255, 255, 255, 0.24);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.48),
-    0 16px 36px rgba(3, 9, 22, 0.36);
+  animation: hero-fade 1s var(--ease-out-expo) 1.1s backwards;
+}
+.hero__scroll-label {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  transition: color var(--dur-2);
+}
+.hero__scroll:hover .hero__scroll-label {
+  color: var(--text-dim);
+}
+.hero__scroll-line {
+  position: relative;
+  display: block;
+  width: 1px;
+  height: 46px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+}
+.hero__scroll-line i {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, var(--aurora-a));
+  animation: scroll-run 2.1s var(--ease-in-out) infinite;
+}
+@keyframes scroll-run {
+  0% { transform: translateY(-110%); }
+  60%, 100% { transform: translateY(260%); }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    align-items: flex-end;
+    padding-bottom: calc(var(--space-2xl) + var(--space-s));
+  }
+  .hero__desc {
+    font-size: var(--step-0);
+  }
+  .hero__actions {
+    width: 100%;
+  }
+  .hero__cta {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .hero__scroll {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .homepage-link {
+  .hero__inner {
     transition: none;
+  }
+  .hero__scroll-line i {
+    animation: none;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
   }
 }
 </style>

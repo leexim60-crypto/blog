@@ -9,33 +9,42 @@
       class="projects-drawer"
       modal-class="projects-drawer-mask"
     >
-      <div class="flex flex-col gap-4">
+      <p class="drawer-intro">我部署上线的作品，点击卡片即可访问</p>
+
+      <div class="drawer-list">
         <a
-          v-for="proj in projectsStore.projects"
+          v-for="(proj, i) in projectsStore.projects"
           :key="proj.name"
+          v-spotlight
           :href="proj.url"
           target="_blank"
           rel="noopener noreferrer"
-          class="project-card !rounded-2xl p-5 flex flex-col gap-3"
+          class="drawer-card glass"
+          :style="{ '--tint': proj.color, '--i': i }"
         >
-          <div class="flex items-center gap-3">
-            <div
-              class="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg"
-              :style="{ background: `linear-gradient(135deg, ${proj.color}, ${proj.color}cc)` }"
-            >
-              <el-icon :size="22" class="text-white"><component :is="proj.icon" /></el-icon>
-            </div>
-            <div class="min-w-0">
-              <h3 class="text-base font-semibold text-white truncate">{{ proj.name }}</h3>
-              <span class="text-xs text-white/40 truncate block">{{ proj.url.replace(/^https?:\/\//, '') }}</span>
-            </div>
+          <span class="drawer-card__tint" aria-hidden="true"></span>
+
+          <div class="drawer-card__top">
+            <span class="drawer-card__icon" aria-hidden="true">
+              <el-icon :size="20"><component :is="proj.icon" /></el-icon>
+            </span>
+            <span class="drawer-card__index num" aria-hidden="true">
+              {{ String(i + 1).padStart(2, '0') }}
+            </span>
           </div>
-          <p class="text-sm text-white/60 leading-relaxed">{{ proj.desc }}</p>
-          <span class="text-xs flex items-center gap-1 self-start text-white/50">
-            访问项目 <el-icon><TopRight /></el-icon>
+
+          <h3 class="drawer-card__name">{{ proj.name }}</h3>
+          <p class="drawer-card__desc">{{ proj.desc }}</p>
+
+          <span class="drawer-card__foot">
+            <span class="drawer-card__url">{{ prettyUrl(proj.url) }}</span>
+            <el-icon class="drawer-card__go"><TopRight /></el-icon>
           </span>
         </a>
-        <el-empty v-if="projectsStore.projects.length === 0" description="还没有项目" />
+
+        <p v-if="projectsStore.projects.length === 0" class="drawer-empty">
+          还没有项目，稍后再来看看 ✨
+        </p>
       </div>
     </el-drawer>
   </Teleport>
@@ -45,26 +54,149 @@
 import { useProjectsStore } from '../stores/projects'
 
 const projectsStore = useProjectsStore()
+
+const prettyUrl = (url) => String(url).replace(/^https?:\/\//, '').replace(/\/$/, '')
 </script>
 
 <style scoped>
-.project-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition:
-    transform 300ms ease,
-    background-color 300ms ease,
-    border-color 300ms ease,
-    box-shadow 300ms ease;
+.drawer-intro {
+  margin: 0 0 var(--space-s);
+  font-size: var(--step--1);
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.project-card:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow: 0 20px 40px rgba(2, 8, 20, 0.5);
+.drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.drawer-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.1rem 1.15rem;
+  border-radius: var(--r-m);
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  /* 依次入场，抽屉打开时更有层次 */
+  animation: drawer-card-in 520ms var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i) * 60ms + 80ms);
+}
+@keyframes drawer-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.drawer-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--tint) 42%, rgba(255, 255, 255, 0.2));
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.drawer-card__tint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--tint), transparent);
+  transform: scaleX(0);
+  opacity: 0;
+  transition:
+    transform var(--dur-4) var(--ease-out-expo),
+    opacity var(--dur-3);
+}
+.drawer-card:hover .drawer-card__tint {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+.drawer-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.drawer-card__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--tint), color-mix(in srgb, var(--tint) 62%, #000));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--tint) 30%, transparent);
+  transition: transform var(--dur-3) var(--ease-spring);
+}
+.drawer-card:hover .drawer-card__icon {
+  transform: scale(1.07) rotate(-6deg);
+}
+.drawer-card__index {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.drawer-card__name {
+  margin: 0.15rem 0 0;
+  font-size: var(--step-1);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+  color: #fff;
+}
+.drawer-card__desc {
+  margin: 0;
+  font-size: var(--step--1);
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.drawer-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.drawer-card__url {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drawer-card__go {
+  color: rgba(255, 255, 255, 0.45);
+  transition: transform var(--dur-3) var(--ease-spring), color var(--dur-2);
+}
+.drawer-card:hover .drawer-card__go {
+  transform: translate(2px, -2px);
+  color: #fff;
+}
+
+.drawer-empty {
+  padding: var(--space-l) 0;
+  text-align: center;
+  font-size: var(--step--1);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+@media (max-width: 640px) {
+  .drawer-card {
+    padding: 1rem;
+  }
 }
 </style>
 
@@ -107,10 +239,12 @@ const projectsStore = useProjectsStore()
 
 .projects-drawer .el-drawer__close-btn {
   color: rgba(255, 255, 255, 0.7);
+  transition: color 0.2s ease, transform 0.2s ease;
 }
 
-.projects-drawer .el-drawer__close-btn:hover i {
+.projects-drawer .el-drawer__close-btn:hover {
   color: #fff;
+  transform: rotate(90deg);
 }
 
 .projects-drawer .el-drawer__body {
@@ -126,7 +260,7 @@ const projectsStore = useProjectsStore()
 
 @media (max-width: 768px) {
   .projects-drawer.el-drawer {
-    width: 85% !important;
+    width: 88% !important;
   }
 }
 </style>

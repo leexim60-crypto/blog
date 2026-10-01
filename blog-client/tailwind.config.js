@@ -6,42 +6,56 @@ export default {
   ],
   theme: {
     extend: {
+      /* 与 src/assets/style.css 里的设计 token 保持一致，
+         这样在模板里用工具类也不会跑出设计系统之外 */
       colors: {
-        primary: {
-          50: '#fff1f2',
-          100: '#ffe4e6',
-          200: '#fecdd3',
-          300: '#fda4af',
-          400: '#fb7185',
-          500: '#f43f5e',
-          600: '#e11d48',
-          700: '#be123c',
-          800: '#9f1239',
-          900: '#881337',
+        ink: {
+          900: '#04060d',
+          850: '#060a14',
+          800: '#080e1b',
+          700: '#0c1425',
+          600: '#111c33',
         },
-        warm: {
-          50: '#fdf8f6',
-          100: '#f2e8e5',
-          200: '#eaddd7',
-          300: '#e0cec7',
-          400: '#d2bab0',
-          500: '#bfa094',
-          600: '#a18072',
-          700: '#977669',
-          800: '#846358',
-          900: '#43302b',
-        }
+        aurora: {
+          a: '#6ea8ff',
+          b: '#a78bfa',
+          c: '#5eead4',
+        },
+        ember: '#ffb86b',
       },
-      boxShadow: {
-        'card': '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-        'card-hover': '0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04)',
+      fontFamily: {
+        sans: ['Inter Tight', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'sans-serif'],
+        serif: ['Instrument Serif', 'Songti SC', 'Georgia', 'serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       borderRadius: {
-        'card': '12px',
+        xs: '8px',
+        s: '12px',
+        m: '18px',
+        l: '26px',
       },
-      spacing: {
-        'header': '64px',
-      }
+      maxWidth: {
+        shell: '72rem',
+        read: '44rem',
+      },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',
+        spring: 'cubic-bezier(0.34, 1.4, 0.5, 1)',
+      },
+      keyframes: {
+        'float-slow': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        shimmer: {
+          to: { backgroundPosition: '200% center' },
+        },
+      },
+      animation: {
+        'float-slow': 'float-slow 6s ease-in-out infinite',
+        shimmer: 'shimmer 4s linear infinite',
+      },
     },
   },
   plugins: [],

@@ -18,15 +18,26 @@ request.interceptors.request.use(config => {
 })
 
 // 响应拦截：统一错误提示
+// 文案面向用户而不是开发者：免费实例冷启动/网络异常时给出可行动的说法，
+// 避免把 “Cannot GET /api/...” 这类技术细节直接丢到界面上。
 request.interceptors.response.use(
   res => res.data,
   err => {
+    const status = err.response?.status
     let msg = err.response?.data?.message
-    // 超时或无法连接：大概率是后端免费实例冷启动休眠，正在唤醒
+
     if (!err.response) {
-      msg = '连接后端超时：免费服务器可能正在唤醒（约需1分钟），请稍等后重试'
+      // 超时或无法连接：大概率是后端免费实例冷启动休眠，正在唤醒
+      msg = '后端正在唤醒（免费实例休眠中），大约 1 分钟后重试'
+    } else if (!msg || typeof msg !== 'string') {
+      if (status === 401) msg = '登录状态已过期，请重新登录'
+      else if (status === 403) msg = '没有权限执行这个操作'
+      else if (status === 404) msg = '内容不存在，可能已被删除'
+      else if (status >= 500) msg = '服务器开小差了，请稍后再试'
+      else msg = `请求失败（${status}）`
     }
-    ElMessage.error(msg || '网络错误，请稍后重试')
+
+    ElMessage.error(msg)
     return Promise.reject(err)
   }
 )
