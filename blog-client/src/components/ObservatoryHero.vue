@@ -10,17 +10,16 @@
         <div class="hero-actions"><a href="#work" class="btn-aurora">探索我的作品 <el-icon><TopRight /></el-icon></a><router-link to="/diary" class="hero-journal">翻开日记 <el-icon><Right /></el-icon></router-link></div>
         <div class="hero-footnote"><span class="tiny-orbit" aria-hidden="true">◎</span> 保持好奇，持续创造 <span class="hero-footnote__line"></span><span class="num">{{ year }}</span></div>
       </div>
-      <div class="orbital" aria-label="数字宇宙的轨道插画" role="img">
-        <div class="orbital-orbit orbital-orbit--one"></div><div class="orbital-orbit orbital-orbit--two"></div><span class="orbital-cross cross-one">+</span><span class="orbital-cross cross-two">+</span>
-        <div class="orbital-planet"><svg viewBox="0 0 400 400" aria-hidden="true"><defs><radialGradient id="planet-light" cx="28%" cy="22%" r="80%"><stop offset="0" stop-color="#92e4c6"/><stop offset=".32" stop-color="#469b82"/><stop offset=".68" stop-color="#1c4f43"/><stop offset="1" stop-color="#0a1818"/></radialGradient><clipPath id="planet-clip"><circle cx="200" cy="200" r="181"/></clipPath><filter id="planet-grain"><feTurbulence type="fractalNoise" baseFrequency=".55" numOctaves="3" seed="12"/><feColorMatrix type="saturate" values="0"/><feBlend in="SourceGraphic" mode="soft-light"/></filter><linearGradient id="planet-rim" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b9f7db" stop-opacity=".7"/><stop offset="1" stop-color="#3b735f" stop-opacity="0"/></linearGradient></defs><circle cx="200" cy="200" r="181" fill="url(#planet-light)"/><g clip-path="url(#planet-clip)" fill="none" stroke="#b4f5d9" stroke-width=".7" opacity=".23"><ellipse v-for="r in [35,75,118,153,175]" :key="r" cx="200" cy="200" :rx="r" ry="181"/><ellipse v-for="r in [35,75,118,153,175]" :key="'h'+r" cx="200" cy="200" rx="181" :ry="r"/><path d="M19 200h362M200 19v362"/></g><circle cx="200" cy="200" r="181" fill="#497a66" opacity=".19" filter="url(#planet-grain)"/><circle cx="200" cy="200" r="181" fill="none" stroke="url(#planet-rim)" stroke-width="1.5"/></svg></div>
-        <div class="orbital-satellite"><span></span></div><div class="orbital-card"><span class="status-dot"></span><div><strong>IDEAS IN ORBIT</strong><span>灵感正在发生</span></div><span class="orbital-card__spark">✦</span></div><div class="orbital-caption"><span>01 / PERSONAL UNIVERSE</span><span>∞ possibilities</span></div>
-      </div>
+      <MoonExplorer :projects="projectsStore.projects" />
     </div>
     <div class="shell hero-bottom"><a href="#work"><span>SCROLL TO EXPLORE</span><el-icon><ArrowDown /></el-icon></a><span>DESIGNED WITH CURIOSITY <span aria-hidden="true">✦</span></span></div>
   </section>
 </template>
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import MoonExplorer from './MoonExplorer.vue'
+import { useProjectsStore } from '../stores/projects'
+const projectsStore = useProjectsStore()
 const wallpaper = ref(''), year = new Date().getFullYear()
 const bannerStyle = computed(() => wallpaper.value ? { backgroundImage: `linear-gradient(90deg, rgba(13,18,20,.98), rgba(13,18,20,.7)), url("${wallpaper.value}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
 function syncWallpaper() { try { const url = localStorage.getItem('blog_banner_wallpaper'); wallpaper.value = url && /^https?:\/\//.test(url) ? url : '' } catch { wallpaper.value = '' } }
@@ -28,6 +27,7 @@ onMounted(() => { syncWallpaper(); window.addEventListener('banner-wallpaper-cha
 onBeforeUnmount(() => window.removeEventListener('banner-wallpaper-change', syncWallpaper))
 </script>
 <style scoped>
+
 .hero {
   position: relative;
   overflow: hidden;
@@ -144,141 +144,6 @@ onBeforeUnmount(() => window.removeEventListener('banner-wallpaper-change', sync
   background: var(--hairline);
 }
 
-.orbital {
-  height: 480px;
-  position: relative;
-  isolation: isolate;
-}
-
-.orbital-planet {
-  width: 360px;
-  height: 360px;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%,-50%) rotate(-22deg);
-  border-radius: 50%;
-  box-shadow: -20px -15px 85px #73deb817,30px 25px 70px #0007;
-  overflow: hidden;
-}
-
-.orbital-planet svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.orbital-orbit {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 460px;
-  height: 220px;
-  border: 1px solid #a2d9bc27;
-  border-radius: 50%;
-  transform: translate(-50%,-50%) rotate(-35deg);
-}
-
-.orbital-orbit--two {
-  width: 440px;
-  height: 450px;
-  transform: translate(-50%,-50%) rotate(20deg);
-  border-style: dashed;
-  border-color: #a2d9bc18;
-}
-
-.orbital-cross {
-  position: absolute;
-  color: #8fbaa383;
-  font-size: 18px;
-  font-weight: 200;
-}
-
-.cross-one {
-  top: 20px;
-  left: 18%;
-}
-
-.cross-two {
-  right: 2%;
-  bottom: 80px;
-}
-
-.orbital-satellite {
-  position: absolute;
-  left: 5%;
-  top: 64%;
-  width: 22px;
-  height: 22px;
-  border: 1px solid #a0d4bc50;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 30px #84e2b52b;
-}
-
-.orbital-satellite span {
-  width: 9px;
-  height: 9px;
-  background: var(--accent);
-  border-radius: 50%;
-}
-
-.orbital-card {
-  position: absolute;
-  bottom: 54px;
-  right: -2%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #141f1be6;
-  backdrop-filter: blur(15px);
-  border: 1px solid #acd6bd26;
-  border-radius: 12px;
-  padding: 17px 20px;
-  box-shadow: 0 15px 40px #0004;
-  animation: orbital-float 7s ease-in-out infinite;
-}
-
-.orbital-card strong {
-  display: block;
-  font: 9px var(--font-mono);
-  letter-spacing: .12em;
-  color: #b9d6c7;
-}
-
-.orbital-card div>span {
-  display: block;
-  color: var(--text-dim);
-  font-size: 12px;
-  margin-top: 5px;
-}
-
-.orbital-card__spark {
-  color: var(--accent);
-  font-size: 23px;
-  margin-left: 12px;
-}
-
-.orbital-caption {
-  position: absolute;
-  top: 18px;
-  right: 1%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  font: 9px var(--font-mono);
-  letter-spacing: .08em;
-  color: var(--text-faint);
-}
-
-.orbital-caption span:last-child {
-  font: italic 19px var(--font-serif);
-  letter-spacing: 0;
-  color: #9eb7ab;
-}
-
 .hero-bottom {
   position: relative;
   display: flex;
@@ -309,12 +174,6 @@ onBeforeUnmount(() => window.removeEventListener('banner-wallpaper-change', sync
   }
 }
 
-@keyframes orbital-float {
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
 @media (min-width:1440px) {
   .hero-layout {
     min-height: 720px;
@@ -322,22 +181,6 @@ onBeforeUnmount(() => window.removeEventListener('banner-wallpaper-change', sync
 }
 
 @media (max-width:900px) {
-  .orbital-planet {
-    width: 290px;
-    height: 290px;
-  }
-  .orbital-orbit {
-    width: 360px;
-    height: 190px;
-  }
-  .orbital-orbit--two {
-    width: 350px;
-    height: 350px;
-  }
-  .orbital-card {
-    right: 0;
-    padding: 13px;
-  }
   .hero-copy h1 {
     font-size: 55px;
   }
@@ -373,30 +216,6 @@ onBeforeUnmount(() => window.removeEventListener('banner-wallpaper-change', sync
   .hero-footnote {
     margin-top: 29px;
   }
-  .orbital {
-    height: 350px;
-    margin: 16px 0 0;
-  }
-  .orbital-planet {
-    width: 270px;
-    height: 270px;
-  }
-  .orbital-orbit {
-    width: 335px;
-    height: 170px;
-  }
-  .orbital-orbit--two {
-    width: 320px;
-    height: 320px;
-  }
-  .orbital-caption {
-    top: 5px;
-    right: 4%;
-  }
-  .orbital-card {
-    bottom: 24px;
-    right: 5%;
-  }
   .hero-bottom {
     font-size: 8px;
   }
@@ -410,4 +229,5 @@ onBeforeUnmount(() => window.removeEventListener('banner-wallpaper-change', sync
     font-size: 12px;
   }
 }
+
 </style>
