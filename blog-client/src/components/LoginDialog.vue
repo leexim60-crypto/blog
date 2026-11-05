@@ -4,6 +4,8 @@
       <div
         v-if="userStore.showLogin"
         class="login-portal"
+        ref="portalRef"
+        @keydown="trapFocus"
         role="dialog"
         aria-modal="true"
         aria-label="登录或注册"
@@ -22,9 +24,9 @@
           <!-- 头部 -->
           <div class="gate-header">
             <div class="gate-avatar" :key="mode">
-              <span class="avatar-emoji">{{ mode === 'login' ? '🌙' : '🚀' }}</span>
+              <span class="avatar-emoji">✳</span>
             </div>
-            <h2 class="gate-title">{{ mode === 'login' ? '欢迎回到星域' : '创建你的小星球' }}</h2>
+            <h2 class="gate-title">{{ mode === 'login' ? '欢迎回来。' : '让故事从这里开始。' }}</h2>
             <p class="gate-tagline">{{ tagline }}</p>
           </div>
 
@@ -42,34 +44,36 @@
           <!-- 表单 -->
           <form class="gate-form" @submit.prevent="submit">
             <div class="field">
-              <label class="field-label">
+              <label class="field-label" for="auth-username">
                 <el-icon><User /></el-icon> {{ mode === 'login' ? '代号' : '你的专属代号' }}
               </label>
               <input
                 ref="firstInputRef"
+                id="auth-username"
                 v-model.trim="form.username"
                 class="field-input"
                 type="text"
-                placeholder="3-50 个字符，将是你在这片星域的身份"
+                placeholder="请输入用户名（3–50 个字符）"
                 autocomplete="username"
                 maxlength="50"
               />
             </div>
 
             <div class="field">
-              <label class="field-label">
+              <label class="field-label" for="auth-password">
                 <el-icon><Lock /></el-icon> 密码
               </label>
               <input
                 v-model="form.password"
+                id="auth-password"
                 class="field-input"
                 :type="showPwd ? 'text' : 'password'"
                 placeholder="至少 6 位"
                 :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
                 @input="mode === 'register' && evaluateStrength()"
               />
-              <button type="button" class="pwd-eye" @click="showPwd = !showPwd">
-                {{ showPwd ? '🙈' : '👁️' }}
+              <button type="button" class="pwd-eye" :aria-label="showPwd ? '隐藏密码' : '显示密码'" @click="showPwd = !showPwd">
+                {{ showPwd ? '隐藏' : '显示' }}
               </button>
 
               <!-- 注册时的密码强度条 -->
@@ -82,11 +86,12 @@
             </div>
 
             <div v-if="mode === 'register'" class="field">
-              <label class="field-label">
+              <label class="field-label" for="auth-nickname">
                 <el-icon><Postcard /></el-icon> 昵称 <span class="optional">选填</span>
               </label>
               <input
                 v-model.trim="form.nickname"
+                id="auth-nickname"
                 class="field-input"
                 type="text"
                 placeholder="别人怎么称呼你？（留空则用代号）"
@@ -97,19 +102,19 @@
             <!-- 大按钮 -->
             <button class="gate-btn" type="submit" :disabled="loading">
               <span v-if="!loading">
-                {{ mode === 'login' ? '✨ 进入星域' : '🌟 发射，登录我的星球' }}
+                {{ mode === 'login' ? '登录，继续记录' : '创建账号' }}
               </span>
               <span v-else class="launching">
                 <span class="spinner"></span>
-                {{ mode === 'login' ? '正在穿越星门…' : '正在点燃引擎…' }}
+                {{ mode === 'login' ? '正在登录…' : '正在创建账号…' }}
               </span>
             </button>
           </form>
 
           <p class="gate-foot">
             {{ mode === 'login'
-              ? '第一次来？点上面的「注册」种下你的第一颗星 🌱'
-              : '已有账号？点「登录」直接回到星域 🌌' }}
+              ? '第一次来？选择「注册」，开启你的记录。'
+              : '已经有账号？切换「登录」，欢迎回来。' }}
           </p>
         </div>
       </div>
@@ -128,6 +133,16 @@ const mode = ref('login')
 const loading = ref(false)
 const showPwd = ref(false)
 const firstInputRef = ref(null)
+const portalRef = ref(null)
+let previousFocus = null, previousOverflow = ''
+function trapFocus(e) {
+  if (e.key !== 'Tab') return
+  const elements = portalRef.value?.querySelectorAll('button:not(:disabled),input')
+  if (!elements?.length) return
+  const first = elements[0], last = elements[elements.length - 1]
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+}
 const form = reactive({ username: '', password: '', nickname: '' })
 
 /* ---------- 趣味文案 ---------- */
@@ -160,10 +175,10 @@ watch(mode, rollTagline)
 const strength = reactive({ level: 0, label: '', color: '' })
 const STRENGTH_LEVELS = [
   { label: '', color: '' },
-  { label: '脆弱不堪 😢', color: 'lv1' },
-  { label: '勉强能看 😐', color: 'lv2' },
-  { label: '固若金汤 💪', color: 'lv3' },
-  { label: '坚不可摧 🛡️', color: 'lv4' }
+  { label: '较弱', color: 'lv1' },
+  { label: '一般', color: 'lv2' },
+  { label: '较强', color: 'lv3' },
+  { label: '很强', color: 'lv4' }
 ]
 function evaluateStrength() {
   const pwd = form.password
@@ -209,10 +224,15 @@ function resetForm() {
 
 watch(() => userStore.showLogin, v => {
   if (v) {
+    previousFocus = document.activeElement
+    previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     rollTagline()
     // 打开后把焦点交给第一个输入框，键盘用户不必手动 Tab
     nextTick(() => firstInputRef.value?.focus())
   } else {
+    document.body.style.overflow = previousOverflow
+    previousFocus?.focus?.()
     resetForm()
   }
 })
@@ -221,21 +241,22 @@ function onKeydown(e) {
   if (e.key === 'Escape' && userStore.showLogin) close()
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onUnmounted(() => { window.removeEventListener('keydown', onKeydown); if (userStore.showLogin) document.body.style.overflow = previousOverflow })
 
 async function submit() {
+  if (loading.value) return
   if (!form.username || !form.password) {
-    ElMessage.warning('代号和密码都要填上才能穿越星门哦')
+    ElMessage.warning('请输入用户名和密码')
     return
   }
   loading.value = true
   try {
     if (mode.value === 'login') {
       await userStore.login(form.username, form.password)
-      ElMessage.success('穿越成功，欢迎回来 🌟')
+      ElMessage.success('登录成功，欢迎回来')
     } else {
       if (form.password.length < 6) {
-        ElMessage.warning('密码至少 6 位，别让星星一眼看穿')
+        ElMessage.warning('密码至少需要 6 位')
         return
       }
       if (form.username.length < 3) {
@@ -243,7 +264,7 @@ async function submit() {
         return
       }
       await userStore.register(form.username, form.password, form.nickname)
-      ElMessage.success('发射成功，你的星球已就位 🚀')
+      ElMessage.success('账号创建成功')
     }
     userStore.showLogin = false
   } catch {
@@ -256,6 +277,7 @@ async function submit() {
 
 <style scoped>
 /* ===== 蒙层 & 进出场动画 ===== */
+
 .login-portal {
   position: fixed;
   inset: 0;
@@ -269,19 +291,34 @@ async function submit() {
   -webkit-backdrop-filter: blur(10px);
   overscroll-behavior: contain;
 }
+
 .portal-enter-active,
-.portal-leave-active { transition: opacity 0.3s ease; }
+.portal-leave-active {
+  transition: opacity 0.3s ease;
+}
+
 .portal-enter-from,
-.portal-leave-to { opacity: 0; }
+.portal-leave-to {
+  opacity: 0;
+}
+
 .portal-enter-active .star-gate {
   animation: gate-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 @keyframes gate-pop {
-  0% { transform: scale(0.8) translateY(30px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
+  0% {
+    transform: scale(0.8) translateY(30px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 
 /* ===== 星门卡片本体 ===== */
+
 .star-gate {
   position: relative;
   width: 420px;
@@ -293,13 +330,14 @@ async function submit() {
   font-family: var(--font-sans);
   background: linear-gradient(160deg, #0b1e3a 0%, #0a1428 55%, #0d1030 100%);
   border: 1px solid rgba(120, 160, 255, 0.25);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset,
     0 0 45px rgba(80, 130, 255, 0.18),
     0 25px 60px rgba(0, 0, 0, 0.55);
   overflow-x: hidden;
 }
+
 /* 登录 = 蓝紫极光，注册 = 粉紫极光 */
+
 .star-gate::before {
   content: '';
   position: absolute;
@@ -312,12 +350,14 @@ async function submit() {
   pointer-events: none;
   transition: background 0.5s;
 }
+
 .star-gate.register::before {
   background: radial-gradient(closest-side, rgba(200, 120, 255, 0.3), transparent 70%);
   left: 40%;
 }
 
 /* 卡片内的星星 */
+
 .twinkle {
   position: absolute;
   width: 3px;
@@ -328,9 +368,15 @@ async function submit() {
   animation: twinkle linear infinite;
   pointer-events: none;
 }
+
 @keyframes twinkle {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 0.9; box-shadow: 0 0 6px #fff; }
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 6px #fff;
+  }
 }
 
 .close-btn {
@@ -350,6 +396,7 @@ async function submit() {
   transition: all 0.2s;
   z-index: 2;
 }
+
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
@@ -357,7 +404,13 @@ async function submit() {
 }
 
 /* ===== 头部 ===== */
-.gate-header { text-align: center; position: relative; z-index: 1; }
+
+.gate-header {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
 .gate-avatar {
   width: 76px;
   height: 76px;
@@ -371,11 +424,21 @@ async function submit() {
   box-shadow: 0 0 25px rgba(120, 150, 255, 0.35);
   animation: float 3.5s ease-in-out infinite;
 }
+
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
 }
-.avatar-emoji { font-size: 38px; line-height: 1; }
+
+.avatar-emoji {
+  font-size: 38px;
+  line-height: 1;
+}
+
 .gate-title {
   font-size: 22px;
   font-weight: 700;
@@ -388,9 +451,13 @@ async function submit() {
   -webkit-text-fill-color: transparent;
   animation: shimmer 4s linear infinite;
 }
+
 @keyframes shimmer {
-  to { background-position: 200% center; }
+  to {
+    background-position: 200% center;
+  }
 }
+
 .gate-tagline {
   margin-top: 6px;
   font-size: 13px;
@@ -399,6 +466,7 @@ async function submit() {
 }
 
 /* ===== 大 Tab ===== */
+
 .mode-tabs {
   position: relative;
   display: grid;
@@ -410,6 +478,7 @@ async function submit() {
   border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 1;
 }
+
 .tab-slider {
   position: absolute;
   top: 5px;
@@ -421,7 +490,11 @@ async function submit() {
   box-shadow: 0 4px 15px rgba(90, 110, 255, 0.45);
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.tab-slider.register { transform: translateX(100%); }
+
+.tab-slider.register {
+  transform: translateX(100%);
+}
+
 .mode-tab {
   position: relative;
   z-index: 1;
@@ -439,11 +512,25 @@ async function submit() {
   cursor: pointer;
   transition: color 0.25s;
 }
-.mode-tab.active { color: #fff; }
+
+.mode-tab.active {
+  color: #fff;
+}
 
 /* ===== 表单 ===== */
-.gate-form { display: flex; flex-direction: column; gap: 16px; position: relative; z-index: 1; }
-.field { position: relative; }
+
+.gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.field {
+  position: relative;
+}
+
 .field-label {
   display: flex;
   align-items: center;
@@ -453,6 +540,7 @@ async function submit() {
   margin-bottom: 7px;
   font-weight: 500;
 }
+
 .optional {
   font-size: 11px;
   padding: 1px 7px;
@@ -460,6 +548,7 @@ async function submit() {
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.5);
 }
+
 .field-input {
   width: 100%;
   padding: 13px 44px 13px 42px;
@@ -472,17 +561,26 @@ async function submit() {
   transition: all 0.25s;
   background-image: none;
 }
+
 .field-input:focus {
   border-color: rgba(120, 150, 255, 0.7);
   background: rgba(255, 255, 255, 0.09);
   box-shadow: 0 0 0 3px rgba(90, 120, 255, 0.18), 0 0 18px rgba(90, 120, 255, 0.15);
 }
-.field-input::placeholder { color: rgba(255, 255, 255, 0.32); }
+
+.field-input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
 
 /* 输入框左侧 emoji 图标 */
-.field-label :deep(.el-icon) { font-size: 14px; color: rgba(165, 196, 255, 0.8); }
+
+.field-label :deep(.el-icon) {
+  font-size: 14px;
+  color: rgba(165, 196, 255, 0.8);
+}
 
 /* 密码可见切换 */
+
 .pwd-eye {
   position: absolute;
   right: 12px;
@@ -494,11 +592,27 @@ async function submit() {
   opacity: 0.6;
   transition: opacity 0.2s, transform 0.2s;
 }
-.pwd-eye:hover { opacity: 1; transform: scale(1.15); }
+
+.pwd-eye:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
 
 /* 密码强度条 */
-.strength { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
-.strength-bars { display: flex; gap: 5px; flex: 1; }
+
+.strength {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.strength-bars {
+  display: flex;
+  gap: 5px;
+  flex: 1;
+}
+
 .strength .bar {
   flex: 1;
   height: 4px;
@@ -506,17 +620,50 @@ async function submit() {
   background: rgba(255, 255, 255, 0.12);
   transition: background 0.3s;
 }
-.strength .bar.lv1 { background: #f87171; box-shadow: 0 0 6px rgba(248, 113, 113, 0.6); }
-.strength .bar.lv2 { background: #fbbf24; box-shadow: 0 0 6px rgba(251, 191, 36, 0.6); }
-.strength .bar.lv3 { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.6); }
-.strength .bar.lv4 { background: #38bdf8; box-shadow: 0 0 8px rgba(56, 189, 248, 0.8); }
-.strength-text { font-size: 11px; white-space: nowrap; }
-.strength-text.lv1 { color: #f87171; }
-.strength-text.lv2 { color: #fbbf24; }
-.strength-text.lv3 { color: #34d399; }
-.strength-text.lv4 { color: #38bdf8; }
+
+.strength .bar.lv1 {
+  background: #f87171;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.6);
+}
+
+.strength .bar.lv2 {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.6);
+}
+
+.strength .bar.lv3 {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+}
+
+.strength .bar.lv4 {
+  background: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+}
+
+.strength-text {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.strength-text.lv1 {
+  color: #f87171;
+}
+
+.strength-text.lv2 {
+  color: #fbbf24;
+}
+
+.strength-text.lv3 {
+  color: #34d399;
+}
+
+.strength-text.lv4 {
+  color: #38bdf8;
+}
 
 /* ===== 主按钮 ===== */
+
 .gate-btn {
   position: relative;
   overflow: hidden;
@@ -534,14 +681,24 @@ async function submit() {
   box-shadow: 0 8px 22px rgba(90, 110, 255, 0.4);
   transition: transform 0.2s, box-shadow 0.25s, background-position 0.4s;
 }
+
 .gate-btn:hover:not(:disabled) {
   transform: translateY(-2px) scale(1.02);
   background-position: right center;
   box-shadow: 0 12px 30px rgba(120, 110, 255, 0.55);
 }
-.gate-btn:active:not(:disabled) { transform: scale(0.98); }
-.gate-btn:disabled { opacity: 0.75; cursor: wait; }
+
+.gate-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.gate-btn:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
 /* 悬停扫光 */
+
 .gate-btn::after {
   content: '';
   position: absolute;
@@ -553,9 +710,18 @@ async function submit() {
   transform: skewX(-20deg);
   transition: left 0.6s;
 }
-.gate-btn:hover::after { left: 130%; }
 
-.launching { display: flex; align-items: center; justify-content: center; gap: 9px; }
+.gate-btn:hover::after {
+  left: 130%;
+}
+
+.launching {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+
 .spinner {
   width: 16px;
   height: 16px;
@@ -564,9 +730,15 @@ async function submit() {
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* ===== 底部提示 ===== */
+
 .gate-foot {
   position: relative;
   z-index: 1;
@@ -577,6 +749,153 @@ async function submit() {
 }
 
 @media (max-width: 480px) {
-  .star-gate { padding: 28px 20px 22px; }
+  .star-gate {
+    padding: 28px 20px 22px;
+  }
+}
+
+.login-portal {
+  background: #050b09b8;
+}
+
+.star-gate {
+  background: #18241d;
+  border: 1px solid #b4dfc22b;
+  border-radius: 16px;
+  box-shadow: 0 35px 100px #0006;
+  padding: 38px 32px 30px;
+}
+
+.star-gate:before,.star-gate.register:before {
+  display: none;
+}
+
+.twinkle {
+  display: none;
+}
+
+.gate-avatar {
+  width: 59px;
+  height: 59px;
+  border-radius: 13px;
+  border: 1px solid #b4dfc229;
+  box-shadow: none;
+  background: var(--accent-soft);
+  animation: none;
+  margin-bottom: 20px;
+}
+
+.avatar-emoji {
+  font-size: 36px;
+  color: var(--accent);
+}
+
+.gate-title {
+  background: none;
+  -webkit-text-fill-color: var(--text-hi);
+  color: var(--text-hi);
+  animation: none;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -.03em;
+}
+
+.gate-tagline {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.mode-tabs {
+  padding: 4px;
+  border-radius: 8px;
+  background: #0f1915;
+  border: 1px solid var(--hairline);
+  margin: 25px 0 22px;
+}
+
+.tab-slider {
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: 5px;
+  background: #b4dfc21a;
+  box-shadow: none;
+}
+
+.mode-tab {
+  font-size: 12px;
+  padding: 10px;
+  color: var(--text-dim);
+}
+
+.mode-tab.active {
+  color: var(--accent);
+}
+
+.field-input {
+  padding: 12px 15px;
+  border-radius: 6px;
+  background: #0e181340;
+  border-color: var(--hairline-strong);
+  font-size: 12px;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: #b4dfc205;
+}
+
+.field-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.field-label :deep(.el-icon) {
+  color: var(--accent);
+}
+
+.pwd-eye {
+  font-size: 9px;
+  color: var(--text-dim);
+  right: 12px;
+  bottom: 14px;
+}
+
+.gate-btn {
+  border-radius: 7px;
+  background: var(--accent);
+  color: #13261a;
+  font-weight: 550;
+  letter-spacing: 0;
+  font-size: 13px;
+  padding: 13px;
+  box-shadow: none;
+}
+
+.gate-btn:hover:not(:disabled) {
+  box-shadow: none;
+  background: #c5ebd1;
+  transform: translateY(-1px);
+}
+
+.gate-btn:after {
+  display: none;
+}
+
+.gate-foot {
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--text-faint);
+}
+
+.close-btn {
+  border-radius: 6px;
+  background: #b4dfc209;
+}
+
+.field-input::-ms-reveal, .field-input::-ms-clear {
+  display: none;
 }
 </style>

@@ -1,525 +1,599 @@
 <template>
-  <div class="widget-card widget-music">
-    <div class="widget-head">
-      <span class="widget-title"><el-icon><Headset /></el-icon> 随机听听</span>
-      <span class="widget-badge">{{ badge }}</span>
-    </div>
-
-    <div v-if="loading" class="widget-skeleton">
-      <el-icon class="is-loading" :size="20"><Loading /></el-icon>
-      <span>正在获取歌单…</span>
-    </div>
-
-    <div v-else-if="!tracks.length" class="widget-skeleton">
-      <el-icon :size="20"><Headset /></el-icon>
-      <span class="flex-1">{{ errorText || '暂时没有可播放的歌曲' }}</span>
-      <button class="widget-mini-btn" @click="reload"><el-icon><Refresh /></el-icon></button>
-    </div>
-
-    <template v-else>
-      <div class="music-main">
-        <!-- 唱片封面（封面图源多为 http，https 站点下会失败，自动回退为图标） -->
-        <div class="music-disc" :class="{ 'is-playing': playing }">
-          <img
-            v-if="current.pic && !coverFailed"
-            :src="current.pic"
-            alt="cover"
-            referrerpolicy="no-referrer"
-            @error="coverFailed = true"
-          />
-          <span v-else class="music-disc-fallback"><el-icon :size="22"><Headset /></el-icon></span>
-        </div>
-        <div class="music-meta">
-          <p class="music-title" :title="current.title">{{ current.title || '未选择歌曲' }}</p>
-          <p class="music-artist" :title="current.artist">{{ current.artist }}</p>
-          <p class="music-tip">{{ tipText }}</p>
-        </div>
-      </div>
-
-      <!-- 取流中 -->
-      <div v-if="resolving" class="music-probing">
-        <span class="music-probing-bar is-indeterminate"><i></i></span>
-        <span class="music-probing-text">正在获取播放地址…</span>
-      </div>
-
-      <div class="music-progress" @click="seek">
-        <span class="music-progress-bg">
-          <i :style="{ width: progress + '%' }"></i>
-        </span>
-        <span class="music-time">{{ fmt(cur) }} / {{ fmt(dur) }}</span>
-      </div>
-
-      <div class="music-controls">
-        <button class="music-btn" title="上一首" @click="prev"><el-icon><ArrowLeftBold /></el-icon></button>
-        <button class="music-btn music-btn-main" :title="playing ? '暂停' : '播放'" @click="toggle">
-          <el-icon :size="18"><component :is="playing ? 'VideoPause' : 'VideoPlay'" /></el-icon>
-        </button>
-        <button class="music-btn" title="下一首" @click="next"><el-icon><ArrowRightBold /></el-icon></button>
-        <button class="music-btn" title="换一批歌" @click="reload"><el-icon><Refresh /></el-icon></button>
-        <button class="music-btn" :title="muted ? '取消静音' : '静音'" @click="toggleMute">
-          <el-icon><component :is="muted ? 'Mute' : 'Bell'" /></el-icon>
-        </button>
-      </div>
-    </template>
-
-    <audio
-      ref="audioEl"
-      preload="none"
-      @timeupdate="onTime"
-      @loadedmetadata="onMeta"
-      @ended="onEnded"
-      @error="onError"
-      @playing="onPlaying"
-      @play="playing = true"
-      @pause="playing = false"
-    ></audio>
+  <div class="widget-card music-player">
+    <div class="player-heading"><span><el-icon><Headset /></el-icon> 此刻在听 <small>NOW PLAYING</small></span><span class="player-badge">{{ music.tracks.length }} 首</span></div>
+    <div class="player-source"><label :for="`${uid}-source`">音源</label><select :id="`${uid}-source`" :value="music.source" @change="changeSource($event.target.value)"><option v-for="s in MUSIC_SOURCES" :key="s.key" :value="s.key">{{ s.label }}</option></select><button class="player-icon" :disabled="music.loading" aria-label="刷新当前音源" @click="music.loadSource(true)"><el-icon><Refresh /></el-icon></button></div>
+    <form v-if="music.source === 'netease-custom'" class="player-input-row" @submit.prevent="music.setPlaylist(playlistInput)"><input v-model="playlistInput" aria-label="网易云歌单链接或 ID" placeholder="粘贴网易云歌单链接或 ID"><button type="submit">载入</button></form>
+    <form v-if="music.source.startsWith('netease')" class="player-search" @submit.prevent="music.search(query)"><el-icon><Search /></el-icon><input v-model="query" aria-label="搜索歌曲或歌手" placeholder="搜索歌曲 / 歌手"><button v-if="query" type="button" aria-label="清空音乐搜索" @click="query = ''; music.loadSource()"><el-icon><Close /></el-icon></button><button type="submit" :disabled="music.loading">搜索</button></form>
+    <div v-if="music.source === 'custom'" class="custom-source"><form class="player-input-row" @submit.prevent="addURL"><input v-model="urlInput" type="url" aria-label="音频直链" placeholder="https://…/music.mp3" required><button type="submit">添加直链</button></form><label class="file-pick"><el-icon><Plus /></el-icon> 选择本地音乐<input type="file" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav,.opus" multiple @change="addFiles"></label><p>本地文件仅在本机播放；音频直链会保存在此浏览器。</p></div>
+    <div class="player-main"><div class="player-record" :class="{ spinning: music.playing }"><img v-if="music.current?.pic && !coverFailed" :src="music.current.pic" :alt="`${music.current.title} 的封面`" referrerpolicy="no-referrer" @error="coverFailed = true"><span v-else aria-hidden="true">✳</span><i></i></div><div class="player-track"><p class="track-eyebrow">{{ music.loading ? '寻找此刻的旋律' : music.resolving ? '正在连接音源' : music.playing ? '让音乐陪你一会儿' : '按下播放，让时间慢一点' }}</p><h3>{{ music.current?.title || (music.loading ? '正在载入歌单…' : '选一个音源，开始听听。') }}</h3><p class="track-artist">{{ music.current?.artist || '每一个日常，都可以有自己的配乐。' }}</p></div><button class="player-favorite" :class="{ active:music.currentFavorite }" :aria-pressed="!!music.currentFavorite" :aria-label="music.currentFavorite ? '取消收藏当前歌曲' : '收藏当前歌曲'" :disabled="!music.current" @click="music.toggleFavorite"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg></button></div>
+    <div class="player-progress"><input type="range" :min="0" :max="music.duration || 1" step="0.1" :value="music.elapsed" :disabled="!music.duration" aria-label="歌曲播放进度" :style="{ '--progress': `${progress}%` }" @input="music.seek($event.target.value)"><div><span>{{ fmt(music.elapsed) }}</span><span>{{ fmt(music.duration) }}</span></div></div>
+    <div class="player-controls"><button class="player-icon repeat-button" :aria-label="`切换播放模式，当前${repeatLabel}`" :title="repeatLabel" @click="music.cycleRepeat"><span>{{ music.repeat === 'shuffle' ? '⤨' : music.repeat === 'one' ? '↻¹' : '↻' }}</span></button><div class="player-transport"><button class="player-icon" aria-label="上一首" :disabled="!music.current || music.loading" @click="music.step(-1)"><el-icon><ArrowLeftBold /></el-icon></button><button class="player-play" :disabled="!music.current || music.loading" :aria-label="music.playing || music.resolving ? '暂停' : '播放'" @click="music.toggle"><el-icon :class="{ 'is-loading': music.resolving }"><component :is="music.resolving ? 'Loading' : music.playing ? 'VideoPause' : 'VideoPlay'" /></el-icon></button><button class="player-icon" aria-label="下一首" :disabled="!music.current || music.loading" @click="music.step(1)"><el-icon><ArrowRightBold /></el-icon></button></div><div class="player-volume"><button class="player-icon" :aria-label="music.muted ? '取消静音' : '静音'" @click="music.toggleMute"><el-icon><component :is="music.muted ? 'Mute' : 'Bell'" /></el-icon></button><input type="range" min="0" max="1" step="0.01" :value="music.volume" aria-label="音量" @input="music.setVolume($event.target.value)"></div></div>
+    <div v-if="music.errorText" class="player-error" role="status"><p>{{ music.errorText }}</p><button v-if="music.source !== 'open' && music.source !== 'custom'" @click="changeSource('open')">切换开放音源 <el-icon><Right /></el-icon></button></div>
+    <div class="player-bottom"><span><i :class="{ active: music.playing }"></i>{{ music.resolving ? '获取播放地址中…' : music.playing ? '音乐正在播放' : '不会自动播放' }}</span><button :aria-expanded="showList" @click="showList = !showList">{{ showList ? '收起歌单' : '查看歌单' }}<el-icon><ArrowDown /></el-icon></button></div>
+    <div v-if="showList" class="player-list"><div class="playlist-tools"><span>{{ music.sourceLabel }}</span><label><input v-model="favoritesOnly" type="checkbox"> 只看收藏</label></div><ol><li v-for="item in visibleTracks" :key="`${item.track.source}:${item.track.id}`" :class="{ selected:item.i === music.index }"><button class="playlist-track" :disabled="music.loading" @click="music.selectTrack(item.i)"><span class="playlist-index">{{ item.i === music.index && music.playing ? '♫' : String(item.i + 1).padStart(2,'0') }}</span><span><strong>{{ item.track.title }}</strong><small>{{ item.track.artist }}</small></span><el-icon v-if="item.i === music.index"><component :is="music.playing ? 'VideoPause' : 'VideoPlay'" /></el-icon></button><button v-if="music.source === 'custom'" class="player-icon" :aria-label="`移除 ${item.track.title}`" @click="music.removeCustom(item.track.id)"><el-icon><Close /></el-icon></button></li></ol><p v-if="!visibleTracks.length" class="playlist-empty">{{ favoritesOnly ? '还没有收藏，点歌曲旁的爱心试试。' : '这个音源还没有曲目。' }}</p></div>
+    <p class="source-note">{{ music.source.startsWith('netease') ? '音源：GD 音乐台 / 网易云。部分曲目可能受版权、地区或接口状态影响。' : music.source === 'open' ? '音源：SoundHelix 开放器乐作品。' : '音频直链需要支持浏览器播放；本地音乐刷新后需要重新选择。' }}</p>
   </div>
 </template>
-
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { fetchJson, readCache, writeCache } from '../../utils/widgetFetch'
-
-/* =========================================================
- * 音源：GDStudio 音乐台（music-api.gdstudio.xyz）
- *
- * 为什么换掉之前的 Meting 公共实例：
- * 之前用 api.i-meto.com 拿到的直链约一半是 404（版权限制），
- * 只能靠「预探测」筛掉死歌，实测命中率仅 42%，体验很差。
- * GDStudio 抽样 10/10 全部可播且是 320kbps，所以这里改成：
- *   - 只请求一次歌单（200 首，随机打乱）
- *   - 点播放时才按需取该首的播放地址（1 次请求）
- * 请求量因此极低，也避开了接口的限流（请求过密会 503）。
- * ========================================================= */
-
-const API = 'https://music-api.gdstudio.xyz/api.php'
-const SOURCE = 'netease'
-const PLAYLIST_ID = '3778678' // 网易云热歌榜
-const CACHE_KEY = 'widget_music_tracks_v4'
-const CACHE_TTL = 6 * 60 * 60 * 1000
-
-const audioEl = ref(null)
-const tracks = ref([])
-const index = ref(0)
-const loading = ref(true)
-const resolving = ref(false)
-const errorText = ref('')
-const playing = ref(false)
-const muted = ref(false)
-const cur = ref(0)
-const dur = ref(0)
-const coverFailed = ref(false)
-
-const current = computed(() => tracks.value[index.value] || {})
-const progress = computed(() => (dur.value ? Math.min(100, (cur.value / dur.value) * 100) : 0))
-
-const badge = computed(() => {
-  if (!tracks.value.length) return '网易云'
-  return `${tracks.value.length} 首`
-})
-
-const tipText = computed(() => {
-  if (resolving.value) return '正在获取播放地址…'
-  return '点击播放 · 320kbps 音质'
-})
-
-const fmt = (s) => {
-  if (!s || Number.isNaN(s)) return '0:00'
-  return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0')
-}
-
-/** 把 GDStudio 返回的网易云原始结构压成组件用的扁平结构 */
-function normalize(t) {
-  return {
-    id: t.id,
-    title: t.name || '未知曲目',
-    artist: (t.ar || []).map((a) => a.name).join(' / ') || '未知歌手',
-    // 封面多为 http，https 站点下加载会失败 → 由 @error 回退成图标
-    pic: (t.al && t.al.picUrl) || '',
-    duration: t.dt ? t.dt / 1000 : 0
-  }
-}
-
-/** 取某首歌的播放地址（GDStudio 返回的是有时效的直链，所以不缓存） */
-async function resolveUrl(id) {
-  const res = await fetchJson(`${API}?types=url&source=${SOURCE}&id=${id}&br=320`, { timeout: 15000 })
-  return res && res.url ? res.url : ''
-}
-
-async function loadTracks(force = false) {
-  const token = ++listToken
-  // 换歌单时立刻中止正在进行的播放，避免旧歌单的曲目被异步加载回来
-  playToken++
-  loadedUrl = ''
-
-  loading.value = true
-  errorText.value = ''
-
-  if (!force) {
-    const cached = readCache(CACHE_KEY, CACHE_TTL)
-    if (Array.isArray(cached) && cached.length) {
-      tracks.value = cached.slice().sort(() => Math.random() - 0.5)
-      index.value = 0
-      loading.value = false
-      return
-    }
-  }
-
-  try {
-    const res = await fetchJson(`${API}?types=playlist&source=${SOURCE}&id=${PLAYLIST_ID}`, {
-      timeout: 15000
-    })
-    if (token !== listToken) return // 已被更新的一次「换一批」取代
-    const list = res?.playlist?.tracks
-    if (!Array.isArray(list) || !list.length) throw new Error('empty')
-
-    const normalized = list.map(normalize).filter((t) => t.id)
-    writeCache(CACHE_KEY, normalized)
-    tracks.value = normalized.slice().sort(() => Math.random() - 0.5)
-    index.value = 0
-  } catch (e) {
-    if (token !== listToken) return
-    tracks.value = []
-    errorText.value = '歌单接口暂时不可用（可能被限流）'
-  } finally {
-    if (token === listToken) loading.value = false
-  }
-}
-
-/** 换一批：重新拉歌单并打乱 */
-function reload() {
-  const el = audioEl.value
-  if (el) {
-    el.pause()
-    el.removeAttribute('src')
-    el.load() // 仅移除 src 不会重置元素，currentSrc 会残留上一首
-  }
-  playing.value = false
-  cur.value = 0
-  dur.value = 0
-  consecutiveErr = 0
-  loadTracks(true) // 内部会推进 playToken / listToken 并清空 loadedUrl
-}
-
-/* 播放代次：取流是异步的，切歌后旧请求的结果必须丢弃，否则会乱序覆盖 src */
-let playToken = 0
-/* 当前「已经加载进 audio 元素」的直链，用来判断点播放是续播还是重新取流 */
-let loadedUrl = ''
-/* 连续播放失败次数，超过阈值就停下，避免无限跳过把接口刷到限流 */
-let consecutiveErr = 0
-/* 换一批的代次：重新拉歌单是异步的，期间不能被旧歌单的播放结果污染 */
-let listToken = 0
-
-async function play() {
-  const el = audioEl.value
-  const track = current.value
-  if (!el || !track.id) return
-
-  const token = ++playToken
-  resolving.value = true
-  coverFailed.value = false
-
-  let url = ''
-  try {
-    url = await resolveUrl(track.id)
-  } catch (e) {
-    url = ''
-  }
-  // 等待取流期间用户又切了歌，这次结果作废
-  if (token !== playToken) return
-  resolving.value = false
-
-  if (!url) {
-    // 这首歌拿不到地址（版权/限流/网络异常），跳过；连续失败过多则停下
-    loadedUrl = ''
-    consecutiveErr++
-    if (consecutiveErr > 3) {
-      playing.value = false
-      errorText.value = '播放失败较多，请点刷新重试'
-      return
-    }
-    if (tracks.value.length > 1) go(1, { autoplay: true, keepErr: true })
-    else errorText.value = '这首歌暂时无法播放'
-    return
-  }
-
-  loadedUrl = url
-  // 先 pause 再换源：直接改 src 会让浏览器对旧资源抛中断错误
-  el.pause()
-  el.src = url
-  el.load()
-  try {
-    await el.play()
-  } catch (e) {
-    /* 换源/暂停引起的中断不算失败，真正的加载失败由 onError 处理 */
-  }
-  // 如果这期间用户又切了歌，playToken 已变，说明上面加载的已是过期曲目：交给最新那次 play 接管
-}
-
-function toggle() {
-  const el = audioEl.value
-  if (!el) return
-  if (playing.value) {
-    el.pause()
-  } else if (loadedUrl && el.getAttribute('src') === loadedUrl) {
-    // 音源与当前曲目一致，直接续播
-    el.play().catch(() => {})
-  } else {
-    // 没有音源、或暂停期间切过歌，必须重新取流，否则会放回上一首
-    play()
-  }
-}
-
-/**
- * 切歌。
- * autoplay 默认跟随当前播放状态：播放中点下一首继续播，暂停中点下一首只换 UI。
- * 注意换源动作不能依赖 playing —— 自然播完时浏览器先发 pause（playing 已变 false），
- * 再发 ended，若此时用 playing 判断就会「只换 UI 不换源」，表现为一直重复放上一首。
- */
-function go(step, { autoplay = playing.value, keepErr = false } = {}) {
-  if (!tracks.value.length) return
-  index.value = (index.value + step + tracks.value.length) % tracks.value.length
-  cur.value = 0
-  dur.value = 0
-  coverFailed.value = false
-  if (!keepErr) consecutiveErr = 0
-
-  if (autoplay) {
-    play()
-  } else {
-    // 暂停状态下切歌：清掉旧音源，避免下次点播放又放出上一首
-    playToken++
-    loadedUrl = ''
-    const el = audioEl.value
-    if (el) {
-      el.pause()
-      el.removeAttribute('src')
-      el.load()
-    }
-    resolving.value = false
-  }
-}
-
-const next = () => go(1)
-const prev = () => go(-1)
-
-/** 自然播完必须显式自动播放下一首（此刻 playing 已被 pause 事件置为 false） */
-function onEnded() {
-  go(1, { autoplay: true })
-}
-
-function toggleMute() {
-  muted.value = !muted.value
-  if (audioEl.value) audioEl.value.muted = muted.value
-}
-
-function onTime() {
-  if (audioEl.value) cur.value = audioEl.value.currentTime || 0
-}
-
-function onMeta() {
-  if (audioEl.value) dur.value = audioEl.value.duration || 0
-}
-
-function seek(e) {
-  const el = audioEl.value
-  if (!el || !dur.value) return
-  const rect = e.currentTarget.getBoundingClientRect()
-  const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-  el.currentTime = ratio * dur.value
-  cur.value = el.currentTime
-}
-
-/* 出错处理：连续多次失败就停下并提示，避免无限跳过把接口刷到限流 */
-function onPlaying() {
-  consecutiveErr = 0
-}
-
-function onError() {
-  if (!tracks.value.length) return
-  const el = audioEl.value
-  // 换源过程中旧资源被中断也会触发 error，那不算播放失败
-  if (!loadedUrl || !el || el.getAttribute('src') !== loadedUrl) return
-
-  consecutiveErr++
-  if (consecutiveErr > 3) {
-    playing.value = false
-    errorText.value = '播放失败较多，请点刷新重试'
-    return
-  }
-  setTimeout(() => {
-    if (playing.value) go(1, { autoplay: true, keepErr: true })
-  }, 400)
-}
-
-onMounted(() => loadTracks())
-
-onBeforeUnmount(() => {
-  playToken++
-  listToken++
-  loadedUrl = ''
-  const el = audioEl.value
-  if (el) {
-    el.pause()
-    el.removeAttribute('src')
-    el.load()
-  }
-})
+import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
+import { useMusicStore, MUSIC_SOURCES } from '../../stores/music'
+const music = useMusicStore(), uid = `music-${getCurrentInstance().uid}`
+const coverFailed = ref(false), showList = ref(false), favoritesOnly = ref(false), query = ref(''), urlInput = ref(''), playlistInput = ref(music.playlistId)
+const progress = computed(() => music.duration ? Math.min(100,music.elapsed/music.duration*100) : 0)
+const repeatLabel = computed(() => ({list:'列表循环',one:'单曲循环',shuffle:'随机播放'})[music.repeat])
+const visibleTracks = computed(() => music.tracks.map((track,i)=>({track,i})).filter(({track})=>!favoritesOnly.value || music.favorites.includes(`${track.source}:${track.id}`)))
+const fmt = n => `${Math.floor((Number.isFinite(n) ? n : 0)/60)}:${String(Math.floor((Number.isFinite(n) ? n : 0)%60)).padStart(2,'0')}`
+function changeSource(key) { query.value = '';favoritesOnly.value = false;music.changeSource(key) }
+function addURL() { if(music.addURL(urlInput.value)) {urlInput.value = '';showList.value = true} }
+function addFiles(e) {music.addFiles(e.target.files);e.target.value = '';showList.value = true}
+watch(()=>music.current?.id,()=>{coverFailed.value = false})
+onMounted(()=>music.init())
 </script>
-
 <style scoped>
-.music-main {
+.music-player {
+  padding: 26px;
+  background: linear-gradient(135deg,#1c2a22,#151e1a);
+  border: 1px solid #b4dfc225;
+  border-radius: 13px;
+  box-shadow: none;
+}
+
+.player-heading {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 14px;
+  justify-content: space-between;
+  gap: 10px;
 }
-.music-disc {
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 20px rgba(80, 130, 255, 0.35);
+
+.player-heading>span:first-child {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  animation: disc-spin 14s linear infinite;
-  animation-play-state: paused;
-}
-.music-disc.is-playing {
-  animation-play-state: running;
-}
-.music-disc img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.music-disc-fallback {
-  color: rgba(255, 255, 255, 0.5);
-}
-@keyframes disc-spin {
-  to { transform: rotate(360deg); }
-}
-.music-meta {
-  min-width: 0;
-}
-.music-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.music-artist {
+  gap: 7px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.music-tip {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.25);
-  margin-top: 6px;
-  line-height: 1.4;
+  color: var(--text-hi);
 }
 
-.music-probing {
-  margin-top: 12px;
-}
-.music-probing-bar {
-  display: block;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-  position: relative;
-}
-.music-probing-bar.is-indeterminate i {
-  position: absolute;
-  top: 0;
-  left: -40%;
-  width: 40%;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #4f7cff, #b45cff);
-  animation: indeterminate 1.1s ease-in-out infinite;
-}
-@keyframes indeterminate {
-  0% { left: -40%; }
-  100% { left: 100%; }
-}
-.music-probing-text {
-  display: block;
-  margin-top: 6px;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
+.player-heading .el-icon {
+  color: var(--accent);
 }
 
-.music-progress {
+.player-heading small {
+  font: 7px var(--font-mono);
+  letter-spacing: .12em;
+  margin-left: 6px;
+  color: var(--text-faint);
+}
+
+.player-badge {
+  font: 8px var(--font-mono);
+  border: 1px solid var(--hairline);
+  padding: 3px 7px;
+  border-radius: 4px;
+  color: var(--text-dim);
+}
+
+.player-source {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 21px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 15px;
+}
+
+.player-source label {
+  font-size: 9px;
+  color: var(--text-faint);
+}
+
+.player-source select {
+  flex: 1;
+  min-width: 0;
+  background: #0f191340;
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 10px;
   cursor: pointer;
 }
-.music-progress-bg {
-  position: relative;
-  flex: 1;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  overflow: hidden;
+
+.player-source select option {
+  background: #17251c;
 }
-.music-progress-bg i {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #4f7cff, #b45cff);
-}
-.music-time {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
-  font-variant-numeric: tabular-nums;
-}
-.music-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-.music-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+
+.player-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
   width: 30px;
   height: 30px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  transition: all 0.25s;
+  font-size: 14px;
+  border-radius: 5px;
 }
-.music-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  transform: translateY(-1px);
+
+.player-icon:hover {
+  color: var(--accent);
+  background: var(--surface-3);
 }
-.music-btn-main {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #4f7cff, #b45cff);
-  border: none;
-  color: #fff;
-  box-shadow: 0 0 18px rgba(110, 110, 255, 0.55);
+
+.player-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 7px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.player-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font-size: 10px;
+  color: var(--text);
+  outline: 0;
+}
+
+.player-search button {
+  border: 0;
+  background: none;
+  font-size: 9px;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.player-input-row {
+  display: flex;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.player-input-row input {
+  min-width: 0;
+  flex: 1;
+  background: #0f191340;
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  font-size: 10px;
+  padding: 9px;
+  color: var(--text);
+}
+
+.player-input-row button {
+  padding: 8px 10px;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.file-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--accent);
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.file-pick input {
+  display: none;
+}
+
+.custom-source>p {
+  font-size: 8px;
+  color: var(--text-faint);
+  margin: 6px 0 0;
+  line-height: 1.7;
+}
+
+.player-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 24px 0 20px;
+}
+
+.player-record {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 75px;
+  height: 75px;
+  border-radius: 50%;
+  flex: none;
+  background: repeating-radial-gradient(circle,#202922 0 2px,#162018 3px 4px);
+  border: 1px solid #7895803d;
+  box-shadow: 0 0 0 5px #9fceb706;
+  animation: record-turn 18s linear infinite;
+  animation-play-state: paused;
+  overflow: hidden;
+}
+
+.player-record.spinning {
+  animation-play-state: running;
+}
+
+.player-record>span {
+  font-size: 30px;
+  color: #a4c4ab;
+}
+
+.player-record img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .85;
+}
+
+.player-record i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #17231a;
+  border: 2px solid #accfb6;
+}
+
+.player-track {
+  min-width: 0;
+  flex: 1;
+}
+
+.track-eyebrow {
+  font-size: 8px;
+  color: var(--text-faint);
+  margin: 0 0 8px;
+}
+
+.player-track h3 {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artist {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-favorite {
+  background: none;
+  border: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 5px;
+}
+
+.player-favorite.active {
+  color: #d89b9f;
+}
+
+.player-favorite.active svg {
+  fill: #d89b9f25;
+}
+
+.player-progress input {
+  appearance: none;
+  height: 3px;
+  width: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg,var(--accent) var(--progress),#b4dfc21a var(--progress));
+  display: block;
+  cursor: pointer;
+}
+
+.player-progress input::-webkit-slider-thumb {
+  appearance: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity .2s;
+}
+
+.player-progress input:hover::-webkit-slider-thumb,.player-progress input:focus::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.player-progress input::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  background: var(--accent);
+}
+
+.player-progress>div {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font: 8px var(--font-mono);
+  color: var(--text-faint);
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 17px 0 20px;
+  gap: 10px;
+}
+
+.repeat-button span {
+  font: 22px var(--font-sans);
+  color: var(--text-dim);
+}
+
+.player-transport {
+  display: flex;
+  align-items: center;
+  gap: 19px;
+  margin-left: 25px;
+}
+
+.player-play {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #15291c;
+  cursor: pointer;
+  font-size: 19px;
+  transition: transform .2s;
+}
+
+.player-play:hover {
+  transform: scale(1.07);
+}
+
+.player-volume {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.player-volume input {
+  width: 45px;
+  height: 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.player-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--hairline);
+  padding-top: 13px;
+  font-size: 8px;
+  color: var(--text-faint);
+  gap: 10px;
+}
+
+.player-bottom>span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-bottom i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #637768;
+}
+
+.player-bottom i.active {
+  background: var(--accent);
+}
+
+.player-bottom button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font-size: 9px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.player-error {
+  background: #d1b78e0b;
+  border: 1px solid #d1b78e20;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 13px;
+}
+
+.player-error p {
+  font-size: 10px;
+  color: #c9bda4;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.player-error button {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 9px;
+  cursor: pointer;
+  padding: 8px 0 0;
+}
+
+.source-note {
+  font-size: 8px;
+  line-height: 1.7;
+  color: var(--text-faint);
+  margin: 10px 0 0;
+}
+
+.player-list {
+  margin-top: 15px;
+}
+
+.playlist-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text-faint);
+  padding: 8px 0;
+}
+
+.playlist-tools label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.playlist-tools input {
+  accent-color: var(--accent);
+}
+
+.player-list ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 245px;
+  overflow: auto;
+}
+
+.player-list li {
+  display: flex;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 5px;
+}
+
+.player-list li.selected {
+  background: var(--accent-soft);
+}
+
+.playlist-track {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  padding: 10px 8px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.playlist-index {
+  font: 8px var(--font-mono);
+  color: var(--text-faint);
+  width: 20px;
+  flex: none;
+}
+
+.playlist-track>span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.playlist-track strong,.playlist-track small {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.playlist-track strong {
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 450;
+}
+
+.playlist-track small {
+  font-size: 8px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+
+.playlist-track>.el-icon {
+  color: var(--accent);
+}
+
+.playlist-empty {
+  font-size: 10px;
+  color: var(--text-faint);
+  padding: 20px;
+  text-align: center;
+}
+
+@keyframes record-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width:640px) {
+  .music-player {
+    padding: 20px;
+  }
+  .player-main {
+    gap: 14px;
+  }
+  .player-record {
+    width: 64px;
+    height: 64px;
+  }
+  .player-track h3 {
+    font-size: 16px;
+  }
+  .player-heading small {
+    font-size: 6px;
+  }
+  .player-transport {
+    gap: 15px;
+    margin-left: 10px;
+  }
+  .player-volume input {
+    width: 32px;
+  }
+}
+
+@container (max-width:340px) {
+  .player-heading small {
+    display: none;
+  }
 }
 </style>

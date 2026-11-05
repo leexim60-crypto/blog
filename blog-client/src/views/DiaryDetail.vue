@@ -1,5 +1,5 @@
 <template>
-  <div class="detail" v-loading="loading">
+  <div class="detail" v-loading="loading" :style="{ '--reader-size': `${readerSize}px` }">
     <template v-if="diary">
       <!-- ============================ 文章头部 ============================ -->
       <header class="detail-head">
@@ -58,6 +58,7 @@
         </div>
       </header>
 
+      <div v-if="diary" class="shell-read reader-toolbar"><span>慢慢读，日子不赶时间。</span><div aria-label="阅读字号"><button :disabled="readerSize <= 14" aria-label="缩小正文字号" @click="readerSize--">A−</button><span>{{ readerSize }}</span><button :disabled="readerSize >= 22" aria-label="放大正文字号" @click="readerSize++">A+</button></div></div>
       <!-- ============================ 正文 ============================ -->
       <article class="detail-body">
         <div class="shell-read">
@@ -109,6 +110,7 @@ const userStore = useUserStore()
 const diary = ref(null)
 const loading = ref(true)
 const copied = ref(false)
+const readerSize = ref(16)
 
 const parsed = computed(() => parseDate(diary.value?.diary_date))
 const day = computed(() => parsed.value.day || '')
@@ -189,6 +191,7 @@ onBeforeUnmount(() => {
 }
 
 /* ============================== 头部 ============================== */
+
 .detail-head {
   padding: calc(var(--header-h) + var(--space-l)) 0 var(--space-l);
   border-bottom: 1px solid var(--hairline);
@@ -202,6 +205,7 @@ onBeforeUnmount(() => {
   gap: var(--space-s);
   margin-bottom: var(--space-m);
 }
+
 .detail-back {
   display: inline-flex;
   align-items: center;
@@ -210,14 +214,17 @@ onBeforeUnmount(() => {
   color: var(--text-dim);
   transition: color var(--dur-2), gap var(--dur-2) var(--ease-out-expo);
 }
+
 .detail-back:hover {
   color: #fff;
   gap: 0.6rem;
 }
+
 .detail-nav__actions {
   display: flex;
   gap: 0.4rem;
 }
+
 .detail-act {
   display: inline-flex;
   align-items: center;
@@ -231,12 +238,14 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: all var(--dur-2) var(--ease-out-quart);
 }
+
 .detail-act:hover {
   color: #fff;
   border-color: var(--hairline-strong);
   background: var(--surface-3);
   transform: translateY(-1px);
 }
+
 .detail-act--danger:hover {
   color: #ff9d9d;
   border-color: rgba(255, 122, 122, 0.4);
@@ -244,11 +253,13 @@ onBeforeUnmount(() => {
 }
 
 /* ---- 标题区：大日期 + 标题 ---- */
+
 .detail-title-row {
   display: flex;
   align-items: flex-start;
   gap: var(--space-m);
 }
+
 .detail-date {
   display: flex;
   flex-direction: column;
@@ -257,6 +268,7 @@ onBeforeUnmount(() => {
   padding-top: 0.3rem;
   line-height: 1;
 }
+
 .detail-date__day {
   font-size: var(--step-4);
   font-weight: 700;
@@ -266,6 +278,7 @@ onBeforeUnmount(() => {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
 .detail-date__meta {
   display: flex;
   flex-direction: column;
@@ -287,6 +300,7 @@ onBeforeUnmount(() => {
   color: var(--text-hi);
   word-break: break-word;
 }
+
 .detail-title__mood {
   margin-left: 0.4rem;
   font-size: 0.85em;
@@ -302,12 +316,14 @@ onBeforeUnmount(() => {
   font-size: var(--step--2);
   color: var(--text-faint);
 }
+
 .detail-meta__author {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   color: var(--text-dim);
 }
+
 .detail-meta__avatar {
   display: grid;
   place-items: center;
@@ -319,20 +335,24 @@ onBeforeUnmount(() => {
   color: #fff;
   background: linear-gradient(135deg, var(--aurora-a), var(--aurora-b));
 }
+
 .detail-meta__dot {
   opacity: 0.5;
 }
+
 .detail-meta__stat {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 }
+
 .detail-meta__weather {
   padding: 0.1rem 0.5rem;
   border-radius: var(--r-full);
   border: 1px solid var(--hairline);
   background: var(--surface-1);
 }
+
 .detail-meta__private {
   display: inline-flex;
   align-items: center;
@@ -345,17 +365,20 @@ onBeforeUnmount(() => {
 }
 
 /* ============================== 正文 ============================== */
+
 .detail-body {
   padding-top: var(--space-l);
 }
 
 /* 文末三点：一个安静的结束符 */
+
 .detail-end {
   display: flex;
   justify-content: center;
   gap: 0.45rem;
   margin: var(--space-l) 0;
 }
+
 .detail-end__dot {
   width: 4px;
   height: 4px;
@@ -374,6 +397,7 @@ onBeforeUnmount(() => {
 }
 
 /* ---- 不存在 ---- */
+
 .detail-missing {
   display: flex;
   flex-direction: column;
@@ -382,11 +406,13 @@ onBeforeUnmount(() => {
   padding: var(--space-2xl) var(--gutter);
   text-align: center;
 }
+
 .detail-missing__title {
   font-size: var(--step-2);
   font-weight: 640;
   color: var(--text-hi);
 }
+
 .detail-missing__desc {
   font-size: var(--step--1);
   color: var(--text-dim);
@@ -410,6 +436,110 @@ onBeforeUnmount(() => {
     flex-direction: row;
     gap: 0.5rem;
     margin-top: 0;
+  }
+}
+
+.detail-head {
+  padding: calc(var(--header-h) + 50px) 0 30px;
+  background: radial-gradient(ellipse at 60% 0,#a8d9b80a,transparent 65%);
+}
+
+.detail-title-row {
+  gap: 27px;
+}
+
+.detail-title {
+  font-size: clamp(25px,3.5vw,42px);
+  line-height: 1.5;
+  font-weight: 550;
+  letter-spacing: -.03em;
+}
+
+.detail-date {
+  border-right: 1px solid var(--hairline);
+  padding-right: 24px;
+}
+
+.detail-date__day {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  background: none;
+  -webkit-text-fill-color: var(--accent);
+}
+
+.detail-meta {
+  font-size: 10px;
+  margin-top: 25px;
+}
+
+.detail-meta__avatar {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.reader-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.reader-toolbar>div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 9px var(--font-mono);
+}
+
+.reader-toolbar button {
+  border: 1px solid var(--hairline);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.detail-body {
+  padding-top: 28px;
+}
+
+.detail-body :deep(.markdown-body) {
+  font-size: var(--reader-size,16px) !important;
+}
+
+.detail-foot {
+  padding-top: 28px;
+}
+
+.detail-missing__title {
+  font-weight: 450;
+}
+
+@media (max-width:640px) {
+  .detail-head {
+    padding-top: calc(var(--header-h) + 32px);
+  }
+  .detail-title-row {
+    gap: 18px;
+  }
+  .detail-date {
+    padding-right: 17px;
+  }
+  .detail-date__day {
+    font-size: 36px;
+  }
+  .detail-meta {
+    gap: 9px;
+  }
+  .reader-toolbar {
+    font-size: 9px;
   }
 }
 </style>

@@ -10,6 +10,7 @@ import router from './router'
 import { installDirectives } from './directives'
 import { installIcons } from './icons'
 import './assets/style.css'
+import './assets/refinement.css'
 
 const app = createApp(App)
 const pinia = createPinia()

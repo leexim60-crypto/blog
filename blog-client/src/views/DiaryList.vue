@@ -3,14 +3,14 @@
     <!-- ============================ 页头 ============================ -->
     <header class="diary-head">
       <div class="shell">
-        <p class="eyebrow" v-reveal>Journal</p>
+        <p class="eyebrow" v-reveal>THE JOURNAL / 生活的切片</p>
         <div class="diary-head__row">
           <div>
             <h1 class="diary-head__title" v-reveal="60">
-              我的<span class="diary-head__accent">日记</span>
+              把日常，写成<span class="diary-head__accent">日记。</span>
             </h1>
             <p class="diary-head__desc" v-reveal="110">
-              记录每一天的心情{{ total > 0 ? ` · 共 ${total} 篇` : '' }}
+              记录灵感、心情，还有那些不想被忘记的瞬间。{{ total > 0 ? ` · 共 ${total} 篇` : '' }}
             </p>
           </div>
 
@@ -155,18 +155,19 @@
           <p class="load-more__hint num">已显示 {{ diaries.length }} / {{ total }}</p>
         </div>
 
+        <p v-if="loadError && diaries.length" class="load-more__hint" role="status">暂时无法加载更多，请稍后重试。</p>
         <!-- 空状态 -->
         <div v-if="!loading && diaries.length === 0" class="empty">
           <div class="empty__icon" aria-hidden="true">
             <el-icon :size="30"><Notebook /></el-icon>
           </div>
           <p class="empty__title">
-            {{ keyword || mineOnly ? '没有找到符合条件的日记' : '还没有日记' }}
+            {{ loadError ? '日记暂时没有连接上' : keyword || mineOnly ? '没有找到符合条件的日记' : '故事，从今天开始。' }}
           </p>
           <p class="empty__desc">
-            {{ keyword || mineOnly ? '换个关键词，或者清空筛选试试。' : '第一篇，就从今天开始吧。' }}
+            {{ loadError ? '稍后再试，写下的日子会一直在这里。' : keyword || mineOnly ? '换个关键词，或者清空筛选试试。' : '给今天留一页，把平凡的日子慢慢收藏。' }}
           </p>
-          <div class="empty__actions">
+          <div class="empty__actions"><button v-if="loadError" class="btn-ghost" type="button" @click="reload">重新加载</button>
             <button
               v-if="keyword || mineOnly"
               class="btn-ghost"
@@ -186,7 +187,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import request from '../utils/request'
@@ -203,6 +204,8 @@ const pageSize = 10
 const loading = ref(false)
 const keyword = ref('')
 const mineOnly = ref(false)
+const loadError = ref(false)
+let requestGeneration = 0
 
 const hasMore = computed(() => diaries.value.length < total.value)
 
@@ -233,37 +236,22 @@ function goEdit(d) {
   router.push(`/diary/edit/${d.id}`)
 }
 
-async function fetchPage() {
+async function fetchPage(requestedPage = 1) {
+  const generation = ++requestGeneration
   loading.value = true
+  loadError.value = false
   try {
-    const res = await request.get('/diaries', {
-      params: {
-        page: page.value,
-        pageSize,
-        keyword: keyword.value || undefined,
-        mine: mineOnly.value ? 1 : undefined
-      }
-    })
-    diaries.value.push(...res.data.list)
-    total.value = res.data.total
-  } catch {
-    /* 拦截器已提示 */
-  } finally {
-    loading.value = false
-  }
+    const res = await request.get('/diaries', { params: { page: requestedPage, pageSize, keyword: keyword.value || undefined, mine: mineOnly.value ? 1 : undefined } })
+    if (generation !== requestGeneration) return
+    const list = res.data?.list || []
+    diaries.value = requestedPage === 1 ? list : [...diaries.value, ...list]
+    total.value = res.data?.total || 0
+    page.value = requestedPage
+  } catch { if (generation === requestGeneration) loadError.value = true }
+  finally { if (generation === requestGeneration) loading.value = false }
 }
-
-function loadMore() {
-  page.value++
-  fetchPage()
-}
-
-function reload() {
-  page.value = 1
-  diaries.value = []
-  total.value = 0
-  fetchPage()
-}
+function loadMore() { if (!loading.value && hasMore.value) fetchPage(page.value + 1) }
+function reload() { page.value = 1; diaries.value = []; total.value = 0; fetchPage(1) }
 
 async function confirmDelete(d) {
   try {
@@ -282,7 +270,9 @@ async function confirmDelete(d) {
   }
 }
 
-onMounted(fetchPage)
+onMounted(() => fetchPage(1))
+watch(() => userStore.isLoggedIn, () => { mineOnly.value = false; reload() })
+onBeforeUnmount(() => { requestGeneration++ })
 </script>
 
 <style scoped>
@@ -291,11 +281,13 @@ onMounted(fetchPage)
 }
 
 /* ============================== 页头 ============================== */
+
 .diary-head {
   padding: calc(var(--header-h) + var(--space-l)) 0 var(--space-m);
   border-bottom: 1px solid var(--hairline);
   background: linear-gradient(180deg, rgba(110, 168, 255, 0.05), transparent);
 }
+
 .diary-head__row {
   display: flex;
   align-items: flex-end;
@@ -304,29 +296,34 @@ onMounted(fetchPage)
   flex-wrap: wrap;
   margin-top: 0.9rem;
 }
+
 .diary-head__title {
   margin: 0;
   font-size: var(--step-4);
   font-weight: 680;
   letter-spacing: -0.03em;
 }
+
 .diary-head__accent {
   background: linear-gradient(120deg, var(--aurora-a), var(--aurora-b));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
 .diary-head__desc {
   margin: 0.6rem 0 0;
   font-size: var(--step-0);
   color: var(--text-dim);
 }
+
 .diary-head__action :deep(.el-button),
 .diary-head__action .btn-aurora {
   padding: 0.7rem 1.4rem;
 }
 
 /* ---- 搜索栏 ---- */
+
 .diary-tools {
   display: flex;
   align-items: center;
@@ -334,6 +331,7 @@ onMounted(fetchPage)
   flex-wrap: wrap;
   margin-top: var(--space-m);
 }
+
 .diary-search {
   position: relative;
   display: flex;
@@ -347,20 +345,22 @@ onMounted(fetchPage)
   background: var(--surface-1);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  transition:
-    border-color var(--dur-2) var(--ease-out-quart),
+  transition: border-color var(--dur-2) var(--ease-out-quart),
     background-color var(--dur-2) var(--ease-out-quart),
     box-shadow var(--dur-2) var(--ease-out-quart);
 }
+
 .diary-search:focus-within {
   border-color: var(--accent-line);
   background: var(--surface-2);
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
+
 .diary-search__icon {
   color: var(--text-faint);
   flex: none;
 }
+
 .diary-search__input {
   flex: 1;
   min-width: 0;
@@ -372,13 +372,17 @@ onMounted(fetchPage)
   font-size: var(--step--1);
   outline: none;
 }
+
 .diary-search__input::placeholder {
   color: var(--text-faint);
 }
+
 /* 去掉 Safari 原生的搜索框清除按钮，用自定义的 */
+
 .diary-search__input::-webkit-search-cancel-button {
   display: none;
 }
+
 .diary-search__clear {
   display: grid;
   place-items: center;
@@ -393,13 +397,16 @@ onMounted(fetchPage)
   cursor: pointer;
   transition: all var(--dur-2);
 }
+
 .diary-search__clear:hover {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
+
 .diary-tools__go {
   height: 44px;
 }
+
 .diary-mine {
   display: inline-flex;
   align-items: center;
@@ -411,6 +418,7 @@ onMounted(fetchPage)
 }
 
 /* ============================== 列表 ============================== */
+
 .diary-body {
   padding-top: var(--space-l);
 }
@@ -418,12 +426,14 @@ onMounted(fetchPage)
 .month + .month {
   margin-top: var(--space-l);
 }
+
 .month__head {
   display: flex;
   align-items: baseline;
   gap: 0.7rem;
   margin-bottom: var(--space-s);
 }
+
 .month__label {
   display: flex;
   align-items: baseline;
@@ -431,22 +441,26 @@ onMounted(fetchPage)
   margin: 0;
   font-weight: 680;
 }
+
 .month__num {
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--text-faint);
   letter-spacing: 0.05em;
 }
+
 .month__mon {
   font-size: var(--step-2);
   letter-spacing: -0.02em;
   color: var(--text-hi);
 }
+
 .month__count {
   font-family: var(--font-mono);
   font-size: var(--step--2);
   color: var(--text-faint);
 }
+
 .month__rule {
   flex: 1;
   height: 1px;
@@ -463,6 +477,7 @@ onMounted(fetchPage)
 }
 
 /* ---- 日记卡片 ---- */
+
 .entry__card {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -471,12 +486,12 @@ onMounted(fetchPage)
   padding: 1.15rem 1.25rem;
   cursor: pointer;
 }
+
 .entry__card:hover {
   transform: translateY(-3px);
   border-color: var(--hairline-strong);
   background: var(--surface-2);
-  box-shadow:
-    0 22px 48px rgba(1, 4, 12, 0.55),
+  box-shadow: 0 22px 48px rgba(1, 4, 12, 0.55),
     var(--inner-hi);
 }
 
@@ -488,12 +503,14 @@ onMounted(fetchPage)
   padding-top: 0.1rem;
   line-height: 1;
 }
+
 .entry__day {
   font-size: var(--step-2);
   font-weight: 660;
   color: var(--text-hi);
   letter-spacing: -0.02em;
 }
+
 .entry__week {
   margin-top: 0.3rem;
   font-family: var(--font-mono);
@@ -505,12 +522,14 @@ onMounted(fetchPage)
 .entry__main {
   min-width: 0;
 }
+
 .entry__top {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
 .entry__title {
   display: block;
   margin: 0;
@@ -524,17 +543,21 @@ onMounted(fetchPage)
   max-width: 100%;
   transition: color var(--dur-2);
 }
+
 .entry__title:hover {
   color: var(--aurora-a);
 }
+
 .entry__mood {
   font-size: 1.05em;
   line-height: 1;
 }
+
 .entry__weather {
   font-size: var(--step--2);
   color: var(--text-faint);
 }
+
 .entry__private {
   display: inline-flex;
   align-items: center;
@@ -569,16 +592,19 @@ onMounted(fetchPage)
   font-size: var(--step--2);
   color: var(--text-faint);
 }
+
 .entry__stat {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
 }
+
 .entry__divider {
   width: 1px;
   height: 12px;
   background: var(--hairline);
 }
+
 .entry__act {
   display: inline-flex;
   align-items: center;
@@ -592,10 +618,12 @@ onMounted(fetchPage)
   cursor: pointer;
   transition: color var(--dur-2), background-color var(--dur-2);
 }
+
 .entry__act:hover {
   color: var(--aurora-a);
   background: rgba(110, 168, 255, 0.12);
 }
+
 .entry__act--danger:hover {
   color: #ff8f8f;
   background: rgba(255, 122, 122, 0.12);
@@ -606,12 +634,14 @@ onMounted(fetchPage)
   color: var(--text-faint);
   transition: transform var(--dur-3) var(--ease-out-expo), color var(--dur-2);
 }
+
 .entry__card:hover .entry__go {
   transform: translateX(4px);
   color: var(--aurora-a);
 }
 
 /* ---- 加载更多 ---- */
+
 .load-more {
   display: flex;
   flex-direction: column;
@@ -619,17 +649,21 @@ onMounted(fetchPage)
   gap: 0.6rem;
   margin-top: var(--space-l);
 }
+
 .load-more .btn-ghost {
   min-width: 9rem;
 }
+
 .load-more__hint {
   font-family: var(--font-mono);
   font-size: var(--step--2);
   color: var(--text-faint);
 }
+
 .is-spin {
   animation: spin 1s linear infinite;
 }
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -637,6 +671,7 @@ onMounted(fetchPage)
 }
 
 /* ---- 空状态 ---- */
+
 .empty {
   display: flex;
   flex-direction: column;
@@ -645,6 +680,7 @@ onMounted(fetchPage)
   padding: var(--space-2xl) var(--space-m);
   text-align: center;
 }
+
 .empty__icon {
   display: grid;
   place-items: center;
@@ -656,15 +692,18 @@ onMounted(fetchPage)
   background: var(--surface-1);
   color: var(--text-faint);
 }
+
 .empty__title {
   font-size: var(--step-1);
   font-weight: 620;
   color: var(--text-hi);
 }
+
 .empty__desc {
   font-size: var(--step--1);
   color: var(--text-dim);
 }
+
 .empty__actions {
   display: flex;
   gap: 0.6rem;
@@ -674,17 +713,20 @@ onMounted(fetchPage)
 }
 
 /* ---- 骨架屏 ---- */
+
 .skeleton-wrap {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
+
 .skeleton-card {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
   padding: 1.4rem;
 }
+
 .skeleton-line {
   display: block;
   height: 11px;
@@ -698,9 +740,14 @@ onMounted(fetchPage)
   background-size: 200% 100%;
   animation: skeleton 1.6s var(--ease-in-out) infinite;
 }
+
 @keyframes skeleton {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 @media (max-width: 640px) {
@@ -714,6 +761,216 @@ onMounted(fetchPage)
   .entry__excerpt {
     -webkit-line-clamp: 2;
     line-clamp: 2;
+  }
+}
+
+.diary-head {
+  padding: calc(var(--header-h) + 66px) 0 30px;
+  background: radial-gradient(ellipse at 85% 0,#a8d9b809,transparent 65%);
+}
+
+.diary-head__title {
+  font-size: clamp(30px,4vw,48px);
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.diary-head__accent {
+  color: var(--accent);
+  background: none;
+  -webkit-text-fill-color: var(--accent);
+}
+
+.diary-head__desc {
+  font-size: 12px;
+  line-height: 1.9;
+  margin-top: 15px;
+}
+
+.diary-tools {
+  margin-top: 32px;
+  max-width: 790px;
+}
+
+.diary-search {
+  border-radius: 7px;
+  height: 44px;
+  background: #131d18;
+}
+
+.diary-search__input {
+  font-size: 12px;
+}
+
+.diary-mine {
+  font-size: 11px;
+}
+
+.diary-body {
+  padding-top: 20px;
+}
+
+.month__head {
+  margin-bottom: 25px;
+}
+
+.month__num {
+  font-family: var(--font-serif);
+  font-size: 25px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.month__mon {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.month__count {
+  font-size: 10px;
+}
+
+.month__rule {
+  background: var(--hairline);
+}
+
+.entry__card {
+  border-radius: 9px;
+  background: #121b17;
+  box-shadow: none;
+  padding: 23px;
+}
+
+.entry__card:hover {
+  background: #18231c;
+  box-shadow: none;
+  border-color: #a8d9b835;
+}
+
+.entry__day {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 40px;
+  background: none;
+  -webkit-text-fill-color: #b2c6b6;
+}
+
+.entry__title {
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+
+.entry__excerpt {
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.entry__meta {
+  font-size: 10px;
+}
+
+.entry__go {
+  background: none;
+  border: 1px solid var(--hairline);
+  color: var(--accent);
+}
+
+.empty {
+  padding: 65px 20px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 12px;
+  margin-top: 24px;
+}
+
+.empty__icon {
+  background: #a8d9b80b;
+  box-shadow: none;
+  border-color: #a8d9b825;
+  color: var(--accent);
+}
+
+.empty__title {
+  font-weight: 450;
+  font-size: 24px;
+}
+
+.empty__desc {
+  font-size: 12px;
+}
+
+@media (min-width:1000px) {
+  .month {
+    display: grid;
+    grid-template-columns: 155px 1fr;
+    gap: 34px;
+  }
+  .month__head {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    padding-top: 21px;
+    gap: 12px;
+  }
+  .month__rule {
+    display: none;
+  }
+  .month__label {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .month__count {
+    width: 100%;
+    margin-top: 2px;
+  }
+  .entries {
+    margin: 0;
+  }
+  .entry__card {
+    padding: 25px 28px;
+  }
+  .diary-body {
+    padding-top: 35px;
+  }
+}
+
+@media (max-width:640px) {
+  .diary-head {
+    padding-top: calc(var(--header-h) + 40px);
+  }
+  .diary-head__row {
+    gap: 20px;
+  }
+  .diary-head__action {
+    width: 100%;
+  }
+  .diary-head__action .btn-aurora {
+    font-size: 11px;
+    padding: 10px 16px;
+  }
+  .diary-tools {
+    margin-top: 24px;
+  }
+  .entry__card {
+    padding: 18px 15px;
+    gap: 15px;
+  }
+  .entry__date {
+    min-width: 37px;
+  }
+  .entry__day {
+    font-size: 34px;
+  }
+  .entry__title {
+    font-size: 15px;
+  }
+  .entry__excerpt {
+    font-size: 11px;
+  }
+  .empty__title {
+    font-size: 20px;
   }
 }
 </style>

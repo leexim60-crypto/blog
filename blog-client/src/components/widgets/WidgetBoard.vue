@@ -77,7 +77,7 @@ const WidgetClock = defineAsyncComponent(() => import('./WidgetClock.vue'))
 const WidgetWeather = defineAsyncComponent(() => import('./WidgetWeather.vue'))
 const WidgetStats = defineAsyncComponent(() => import('./WidgetStats.vue'))
 const WidgetQuote = defineAsyncComponent(() => import('./WidgetQuote.vue'))
-const WidgetMusic = defineAsyncComponent(() => import('./WidgetMusic.vue'))
+import WidgetMusic from './WidgetMusic.vue'
 const WidgetBingWallpaper = defineAsyncComponent(() => import('./WidgetBingWallpaper.vue'))
 const WidgetCalendar = defineAsyncComponent(() => import('./WidgetCalendar.vue'))
 const WidgetCountdown = defineAsyncComponent(() => import('./WidgetCountdown.vue'))
@@ -91,12 +91,12 @@ const allWidgets = [
   { key: 'stats', name: '小站统计', desc: '日记数 / 阅读量 / 运行天数', comp: WidgetStats },
   { key: 'countdown', name: '节日倒计时', desc: '下一个节日还有几天', comp: WidgetCountdown },
   { key: 'quote', name: '一言', desc: '随机一句好句子', comp: WidgetQuote },
-  { key: 'music', name: '随机听听', desc: '网易云热歌随机播放', comp: WidgetMusic },
+  { key: 'music', name: '随机听听', desc: '网易云榜单 / 开放器乐 / 我的音源', comp: WidgetMusic },
   { key: 'wallpaper', name: '每日一图', desc: 'Bing 壁纸，可设为横幅背景', comp: WidgetBingWallpaper },
   { key: 'calendar', name: '日记日历', desc: '有日记的日期会亮起小点', comp: WidgetCalendar }
 ]
 
-const DEFAULT_ENABLED = ['clock', 'weather', 'stats', 'countdown', 'quote', 'music', 'wallpaper', 'calendar']
+const DEFAULT_ENABLED = ['clock', 'quote', 'calendar']
 
 const route = useRoute()
 
@@ -466,3 +466,4 @@ function onResize() {
   animation: none;
 }
 </style>
+

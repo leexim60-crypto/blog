@@ -14,6 +14,9 @@ export const useProjectsStore = defineStore('projects', () => {
   const projects = ref([
     {
       name: '坦克大战 Battle City',
+      displayName: '坦克大战',
+      shortDesc: '重返红白机时代。保卫基地，在像素世界里找回熟悉的快乐。',
+      preview: 'tank', category: 'game', tags: ['Canvas', 'PWA', '像素游戏'],
       url: 'https://tank-battle-3s4.pages.dev',
       desc: '红白机坦克大战复刻：Canvas 像素渲染、敌方 AI、基地防守、手机虚拟手柄，支持 PWA 离线安装',
       icon: 'Aim',
@@ -21,6 +24,9 @@ export const useProjectsStore = defineStore('projects', () => {
     },
     {
       name: '四国战机 STRIKERS 1945',
+      displayName: '四国战机 1945',
+      shortDesc: '致敬经典街机。穿过弹幕，驾驶战机，再次奔赴那片天空。',
+      preview: 'strikers', category: 'game', tags: ['Canvas', 'Web Audio', '街机射击'],
       // 独立部署的站点（Cloudflare Workers），不是博客的子页面
       url: 'https://strikers-1945.leexim60.workers.dev',
       desc: '彩京街机致敬版纵版弹幕射击：单文件 Canvas 引擎、四种机型、蓄力超必杀、Boss 战、全合成音效，手机虚拟摇杆可玩',
@@ -29,6 +35,9 @@ export const useProjectsStore = defineStore('projects', () => {
     },
     {
       name: '英语学习网',
+      displayName: 'Daily English',
+      shortDesc: '每天一点点，离更好的自己近一点。让学习成为轻松的日常。',
+      preview: 'english', category: 'tool', tags: ['React', 'Vite', '英语学习'],
       url: 'https://english-mauve-seven.vercel.app',
       desc: 'React + Vite 英语学习网站：单词卡片、每日一句、单词测验、生词本',
       icon: 'Reading',
